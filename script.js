@@ -572,23 +572,12 @@ async function detectFoodWithAI(imageDataUrl) {
 }
 
 function getOpenAIKey() {
-  // Try to get API key from various sources
-  // 1. From a meta tag in HTML
-  const metaKey = document.querySelector('meta[name="openai-api-key"]');
-  if (metaKey) return metaKey.content;
-  
-  // 2. From localStorage (user can set it in profile)
+  // Get API key from localStorage (user sets it in profile)
   const storedKey = localStorage.getItem('openai_api_key');
   if (storedKey) return storedKey;
   
-  // 3. Prompt user to enter it
-  const key = prompt('Bitte gib deinen OpenAI API-Schlüssel ein (wird lokal gespeichert):');
-  if (key) {
-    localStorage.setItem('openai_api_key', key);
-    return key;
-  }
-  
-  throw new Error('Kein OpenAI API-Schlüssel verfügbar');
+  // If no key is stored, throw error - user must configure it in profile
+  throw new Error('Kein OpenAI API-Schlüssel konfiguriert. Bitte gehe zu Profil → KI-Einstellungen.');
 }
 
 function renderFoodDetection() {
@@ -789,7 +778,13 @@ function bindProfile() {
   document.getElementById("save-api-key").addEventListener("click", () => {
     const apiKey = document.getElementById("openai-api-key").value.trim();
     if (!apiKey) {
-      alert('Bitte gib einen gültigen API-Schlüssel ein.');
+      setAIStatus("Bitte API-Schlüssel eingeben", "warn");
+      setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
+      return;
+    }
+    if (!apiKey.startsWith('sk-')) {
+      setAIStatus("Ungültiger API-Schlüssel", "warn");
+      setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
       return;
     }
     localStorage.setItem('openai_api_key', apiKey);
