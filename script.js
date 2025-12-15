@@ -1,5 +1,62 @@
 const STORAGE_KEY = "fitnessAppState";
 
+// COCO Pose keypoint definitions
+const COCO_KEYPOINTS = [
+  { id: 0, name: "nose", baseX: 0.5, baseY: 0.15 },
+  { id: 1, name: "left_eye", baseX: 0.48, baseY: 0.13 },
+  { id: 2, name: "right_eye", baseX: 0.52, baseY: 0.13 },
+  { id: 3, name: "left_ear", baseX: 0.45, baseY: 0.14 },
+  { id: 4, name: "right_ear", baseX: 0.55, baseY: 0.14 },
+  { id: 5, name: "left_shoulder", baseX: 0.42, baseY: 0.28 },
+  { id: 6, name: "right_shoulder", baseX: 0.58, baseY: 0.28 },
+  { id: 7, name: "left_elbow", baseX: 0.38, baseY: 0.42 },
+  { id: 8, name: "right_elbow", baseX: 0.62, baseY: 0.42 },
+  { id: 9, name: "left_wrist", baseX: 0.35, baseY: 0.56 },
+  { id: 10, name: "right_wrist", baseX: 0.65, baseY: 0.56 },
+  { id: 11, name: "left_hip", baseX: 0.45, baseY: 0.58 },
+  { id: 12, name: "right_hip", baseX: 0.55, baseY: 0.58 },
+  { id: 13, name: "left_knee", baseX: 0.44, baseY: 0.75 },
+  { id: 14, name: "right_knee", baseX: 0.56, baseY: 0.75 },
+  { id: 15, name: "left_ankle", baseX: 0.43, baseY: 0.92 },
+  { id: 16, name: "right_ankle", baseX: 0.57, baseY: 0.92 }
+];
+
+// COCO Pose skeleton connections
+const SKELETON_CONNECTIONS = [
+  [0, 1], [0, 2], // nose to eyes
+  [1, 3], [2, 4], // eyes to ears
+  [0, 5], [0, 6], // nose to shoulders
+  [5, 6], // shoulders
+  [5, 7], [7, 9], // left arm
+  [6, 8], [8, 10], // right arm
+  [5, 11], [6, 12], // shoulders to hips
+  [11, 12], // hips
+  [11, 13], [13, 15], // left leg
+  [12, 14], [14, 16] // right leg
+];
+
+// Get color based on confidence level
+function getConfidenceColor(confidence, opacity = 1) {
+  if (confidence > 0.75) {
+    return `rgba(34, 211, 238, ${opacity})`; // cyan - good
+  } else if (confidence > 0.5) {
+    return `rgba(250, 204, 21, ${opacity})`; // yellow - medium
+  } else {
+    return `rgba(239, 68, 68, ${opacity})`; // red - low
+  }
+}
+
+// Get keypoint color (different palette for points vs lines)
+function getKeypointColor(confidence, opacity = 1) {
+  if (confidence > 0.75) {
+    return `rgba(99, 102, 241, ${opacity})`; // blue - good
+  } else if (confidence > 0.5) {
+    return `rgba(250, 204, 21, ${opacity})`; // yellow - medium
+  } else {
+    return `rgba(239, 68, 68, ${opacity})`; // red - low
+  }
+}
+
 const defaultPlan = () => ({
   age: 28,
   gender: "divers",
@@ -142,31 +199,8 @@ function simulateSkeletonFrame() {
   const viewAngle = Math.random(); // 0 = frontal, 0.5 = side, 1 = back
   const perspective = viewAngle < 0.3 ? "frontal" : viewAngle < 0.7 ? "seitlich" : "schräg";
   
-  // Generate 17 keypoints for COCO pose model (standard human pose estimation)
-  // 0: nose, 1-2: eyes, 3-4: ears, 5-6: shoulders, 7-8: elbows, 9-10: wrists
-  // 11-12: hips, 13-14: knees, 15-16: ankles
-  const baseKeypoints = [
-    { id: 0, name: "nose", baseX: 0.5, baseY: 0.15 },
-    { id: 1, name: "left_eye", baseX: 0.48, baseY: 0.13 },
-    { id: 2, name: "right_eye", baseX: 0.52, baseY: 0.13 },
-    { id: 3, name: "left_ear", baseX: 0.45, baseY: 0.14 },
-    { id: 4, name: "right_ear", baseX: 0.55, baseY: 0.14 },
-    { id: 5, name: "left_shoulder", baseX: 0.42, baseY: 0.28 },
-    { id: 6, name: "right_shoulder", baseX: 0.58, baseY: 0.28 },
-    { id: 7, name: "left_elbow", baseX: 0.38, baseY: 0.42 },
-    { id: 8, name: "right_elbow", baseX: 0.62, baseY: 0.42 },
-    { id: 9, name: "left_wrist", baseX: 0.35, baseY: 0.56 },
-    { id: 10, name: "right_wrist", baseX: 0.65, baseY: 0.56 },
-    { id: 11, name: "left_hip", baseX: 0.45, baseY: 0.58 },
-    { id: 12, name: "right_hip", baseX: 0.55, baseY: 0.58 },
-    { id: 13, name: "left_knee", baseX: 0.44, baseY: 0.75 },
-    { id: 14, name: "right_knee", baseX: 0.56, baseY: 0.75 },
-    { id: 15, name: "left_ankle", baseX: 0.43, baseY: 0.92 },
-    { id: 16, name: "right_ankle", baseX: 0.57, baseY: 0.92 }
-  ];
-  
   // Apply perspective transformation and add natural movement variation
-  const keypoints = baseKeypoints.map(kp => {
+  const keypoints = COCO_KEYPOINTS.map(kp => {
     let x = kp.baseX;
     let y = kp.baseY;
     
@@ -250,25 +284,11 @@ function drawSkeletonOnCanvas(frame) {
   const width = skeletonCanvas.width;
   const height = skeletonCanvas.height;
   
-  // Define skeleton connections (COCO pose format)
-  const connections = [
-    [0, 1], [0, 2], // nose to eyes
-    [1, 3], [2, 4], // eyes to ears
-    [0, 5], [0, 6], // nose to shoulders
-    [5, 6], // shoulders
-    [5, 7], [7, 9], // left arm
-    [6, 8], [8, 10], // right arm
-    [5, 11], [6, 12], // shoulders to hips
-    [11, 12], // hips
-    [11, 13], [13, 15], // left leg
-    [12, 14], [14, 16] // right leg
-  ];
-  
   // Draw connections
   skeletonCtx.lineWidth = 3;
   skeletonCtx.lineCap = 'round';
   
-  connections.forEach(([a, b]) => {
+  SKELETON_CONNECTIONS.forEach(([a, b]) => {
     const kpA = frame.keypoints[a];
     const kpB = frame.keypoints[b];
     
@@ -281,17 +301,7 @@ function drawSkeletonOnCanvas(frame) {
       const avgConfidence = (kpA.confidence + kpB.confidence) / 2;
       const opacity = Math.min(1, Math.max(0.3, avgConfidence));
       
-      // Color based on confidence: green for high, yellow for medium, red for low
-      let color;
-      if (avgConfidence > 0.75) {
-        color = `rgba(34, 211, 238, ${opacity})`; // cyan - good
-      } else if (avgConfidence > 0.5) {
-        color = `rgba(250, 204, 21, ${opacity})`; // yellow - medium
-      } else {
-        color = `rgba(239, 68, 68, ${opacity})`; // red - low
-      }
-      
-      skeletonCtx.strokeStyle = color;
+      skeletonCtx.strokeStyle = getConfidenceColor(avgConfidence, opacity);
       skeletonCtx.beginPath();
       skeletonCtx.moveTo(x1, y1);
       skeletonCtx.lineTo(x2, y2);
@@ -307,17 +317,7 @@ function drawSkeletonOnCanvas(frame) {
       const radius = 4 + kp.confidence * 4;
       const opacity = Math.min(1, Math.max(0.5, kp.confidence));
       
-      // Color based on confidence
-      let color;
-      if (kp.confidence > 0.75) {
-        color = `rgba(99, 102, 241, ${opacity})`; // blue - good
-      } else if (kp.confidence > 0.5) {
-        color = `rgba(250, 204, 21, ${opacity})`; // yellow - medium
-      } else {
-        color = `rgba(239, 68, 68, ${opacity})`; // red - low
-      }
-      
-      skeletonCtx.fillStyle = color;
+      skeletonCtx.fillStyle = getKeypointColor(kp.confidence, opacity);
       skeletonCtx.beginPath();
       skeletonCtx.arc(x, y, radius, 0, Math.PI * 2);
       skeletonCtx.fill();
@@ -491,20 +491,7 @@ function renderSkeletonViz(keypoints) {
   let svg = `<svg width="${width}" height="${height}" style="background: #0f172a; border-radius: 8px; margin-top: 8px;">`;
   
   // Draw connections between keypoints (COCO pose format)
-  const connections = [
-    [0, 1], [0, 2], // nose to eyes
-    [1, 3], [2, 4], // eyes to ears
-    [0, 5], [0, 6], // nose to shoulders
-    [5, 6], // shoulders
-    [5, 7], [7, 9], // left arm
-    [6, 8], [8, 10], // right arm
-    [5, 11], [6, 12], // shoulders to hips
-    [11, 12], // hips
-    [11, 13], [13, 15], // left leg
-    [12, 14], [14, 16] // right leg
-  ];
-  
-  connections.forEach(([a, b]) => {
+  SKELETON_CONNECTIONS.forEach(([a, b]) => {
     if (keypoints[a] && keypoints[b] && keypoints[a].confidence > 0.3 && keypoints[b].confidence > 0.3) {
       const x1 = keypoints[a].x * width;
       const y1 = keypoints[a].y * height;
@@ -513,16 +500,7 @@ function renderSkeletonViz(keypoints) {
       const avgConfidence = (keypoints[a].confidence + keypoints[b].confidence) / 2;
       const opacity = Math.min(1, Math.max(0.3, avgConfidence));
       
-      // Color based on confidence
-      let color;
-      if (avgConfidence > 0.75) {
-        color = `rgba(34, 211, 238, ${opacity})`; // cyan - good
-      } else if (avgConfidence > 0.5) {
-        color = `rgba(250, 204, 21, ${opacity})`; // yellow - medium
-      } else {
-        color = `rgba(239, 68, 68, ${opacity})`; // red - low
-      }
-      
+      const color = getConfidenceColor(avgConfidence, opacity);
       svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2.5" stroke-linecap="round" />`;
     }
   });
@@ -535,16 +513,7 @@ function renderSkeletonViz(keypoints) {
       const confidence = Math.min(1, Math.max(0, kp.confidence));
       const radius = 3 + confidence * 3;
       
-      // Color based on confidence
-      let color;
-      if (kp.confidence > 0.75) {
-        color = `rgba(99, 102, 241, ${confidence})`; // blue - good
-      } else if (kp.confidence > 0.5) {
-        color = `rgba(250, 204, 21, ${confidence})`; // yellow - medium
-      } else {
-        color = `rgba(239, 68, 68, ${confidence})`; // red - low
-      }
-      
+      const color = getKeypointColor(kp.confidence, confidence);
       svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${color}" stroke="rgba(255, 255, 255, 0.8)" stroke-width="1.5" />`;
     }
   });
