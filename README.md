@@ -52,7 +52,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 - `User`: Basisdaten, Ziele, Level, Präferenzen, Geräte.  
 - `TrainingSession`: start/end, erkannte Übung(en), `Set[]`, Technik-Score, Pausen.  
 - `Set`: Übung, Wiederholungen, Gewicht (optional), Tempo, ROM, Fehler.  
-- `Exercise`: Name, Typ (Körpergewicht/Gewicht/Gerät), Bewegungsmuster, Empfohlenes Tempo/Range of Motion (ROM).  
+- `Exercise`: Name, Typ (Körpergewicht/Gewicht/Gerät), Bewegungsmuster, Empfohlenes Tempo und Range of Motion (ROM).  
 - `Plan`: Wochenstruktur, Ziel, Frequenz, Alternativübungen.  
 - `FoodEntry`: Bild-Referenz, Zutaten, Portion, Kalorien, Makros, Korrekturen.  
 - `Recommendation`: Ernährung (Protein/Kalorien), Training (Load/Deload), Regeneration.
@@ -75,7 +75,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 ### KI/ML-Pipeline (high-level)
 1. **Pose Detection** (on-device) → Keypoints.  
 2. **Rep & Tempo Detection** → Wiederholungen/Sätze, ROM/Tempo/Explosivität.  
-3. **Form Assessment** → Fehlerklassen (Knie-Valgus-Stellung, Rundrücken, Tiefe, Balance).  
+3. **Form Assessment** → Fehlerklassen (Knie-Valgus-Fehlstellung, Rundrücken, Tiefe, Balance).  
 4. **Scoring** → Technik-Score pro Satz, Confidence.  
 5. **Training Plan Adapter** → Load-Anpassung, Übungsalternativen.  
 6. **Food Vision** → Zutaten + Portion → Kalorien/Makros → Tagebuch.  
