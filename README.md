@@ -40,7 +40,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 - **Onboarding**: Ziel & Geräte-Auswahl, Häufigkeit, Kamera-/Benachrichtigungs-Opt-in.  
 - **Live-Training** (Portrait): Kamera-Viewport oben, Live-Feedback/Rep-Zähler sticky unten, Pause-Timer.  
 - **Training-Review**: Technik-Score pro Satz, Fehlerhinweise mit kurzen Clips/Snapshots.  
-- **Food Scan**: Kamera mit Auto-Crop/Auto-Licht-Hinweis, Ergebnis-Overlay (Gericht, Portion, Kalorien, Makros) + „Anpassen“-Button.  
+- **Food Scan**: Kamera mit Auto-Crop/Auto-Licht-Hinweis, Ergebnis-Overlay (Gericht, Portion, Kalorien, Makros) + „Anpassen“-Button (Portion, Zutaten/Typ, Korrektur von Erkennung).  
 - **Dashboard**: Karten für Training/Ernährung/Regeneration, Streak, heutige Aufgaben.  
 - **Plan-Editor**: Wochenplan, Tausch von Übungen, Ersatzvorschläge bei fehlendem Equipment.
 
@@ -61,12 +61,12 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 - **Frontend**: PWA, Mobile-First UI.  
   - Technologie-Stack: React/Next (Standard wegen breiter Lib-/Hiring-Basis) oder Vue/Nuxt bei vorhandener Team-Expertise.  
   - Plattform-APIs: Service Worker für Offline-Caches, Web Share, Camera API (getUserMedia), Vibration API für Feedback.  
-- **On-Device KI**: WebAssembly/WebGPU-Modelle (Pose/Rep/ROM), Fallback auf Server-Inferenz bei schwachen Geräten.  
+- **On-Device KI**: WebAssembly/WebGPU-Modelle (Pose/Rep/ROM), Fallback auf Server-Inferenz bei schwachen Geräten (z. B. <20 fps Kamera-Stream, fehlendes WebGPU, zu hohe thermische Last).  
 - **Backend/Services**:  
   - Auth + Profile + Plans  
   - Training Tracking & Scoring  
   - Food Vision API: präferiert Custom/On-Device.  
-  - Cloud Vision als Fallback bei schwachen Geräten oder für kalibrierte Kaltstarts.  
+  - Cloud Vision als Fallback bei schwachen Geräten oder für initiale Modellstarts ohne eigenes Modell (Cold Start).  
   - Portionsschätzung (Portion Estimation).  
   - Recommendation Engine (Rules + ML)  
   - Analytics/Events (privacy-preserving)  
