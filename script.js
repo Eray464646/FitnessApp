@@ -1,5 +1,62 @@
 const STORAGE_KEY = "fitnessAppState";
 
+// COCO Pose keypoint definitions
+const COCO_KEYPOINTS = [
+  { id: 0, name: "nose", baseX: 0.5, baseY: 0.15 },
+  { id: 1, name: "left_eye", baseX: 0.48, baseY: 0.13 },
+  { id: 2, name: "right_eye", baseX: 0.52, baseY: 0.13 },
+  { id: 3, name: "left_ear", baseX: 0.45, baseY: 0.14 },
+  { id: 4, name: "right_ear", baseX: 0.55, baseY: 0.14 },
+  { id: 5, name: "left_shoulder", baseX: 0.42, baseY: 0.28 },
+  { id: 6, name: "right_shoulder", baseX: 0.58, baseY: 0.28 },
+  { id: 7, name: "left_elbow", baseX: 0.38, baseY: 0.42 },
+  { id: 8, name: "right_elbow", baseX: 0.62, baseY: 0.42 },
+  { id: 9, name: "left_wrist", baseX: 0.35, baseY: 0.56 },
+  { id: 10, name: "right_wrist", baseX: 0.65, baseY: 0.56 },
+  { id: 11, name: "left_hip", baseX: 0.45, baseY: 0.58 },
+  { id: 12, name: "right_hip", baseX: 0.55, baseY: 0.58 },
+  { id: 13, name: "left_knee", baseX: 0.44, baseY: 0.75 },
+  { id: 14, name: "right_knee", baseX: 0.56, baseY: 0.75 },
+  { id: 15, name: "left_ankle", baseX: 0.43, baseY: 0.92 },
+  { id: 16, name: "right_ankle", baseX: 0.57, baseY: 0.92 }
+];
+
+// COCO Pose skeleton connections
+const SKELETON_CONNECTIONS = [
+  [0, 1], [0, 2], // nose to eyes
+  [1, 3], [2, 4], // eyes to ears
+  [0, 5], [0, 6], // nose to shoulders
+  [5, 6], // shoulders
+  [5, 7], [7, 9], // left arm
+  [6, 8], [8, 10], // right arm
+  [5, 11], [6, 12], // shoulders to hips
+  [11, 12], // hips
+  [11, 13], [13, 15], // left leg
+  [12, 14], [14, 16] // right leg
+];
+
+// Get color based on confidence level
+function getConfidenceColor(confidence, opacity = 1) {
+  if (confidence > 0.75) {
+    return `rgba(34, 211, 238, ${opacity})`; // cyan - good
+  } else if (confidence > 0.5) {
+    return `rgba(250, 204, 21, ${opacity})`; // yellow - medium
+  } else {
+    return `rgba(239, 68, 68, ${opacity})`; // red - low
+  }
+}
+
+// Get keypoint color (different palette for points vs lines)
+function getKeypointColor(confidence, opacity = 1) {
+  if (confidence > 0.75) {
+    return `rgba(99, 102, 241, ${opacity})`; // blue - good
+  } else if (confidence > 0.5) {
+    return `rgba(250, 204, 21, ${opacity})`; // yellow - medium
+  } else {
+    return `rgba(239, 68, 68, ${opacity})`; // red - low
+  }
+}
+
 const defaultPlan = () => ({
   age: 28,
   gender: "divers",
@@ -42,6 +99,8 @@ let poseDetectionInterval;
 let replayTimer;
 let activeFacingMode = "environment";
 let currentFacingMode = "environment";
+let skeletonCanvas;
+let skeletonCtx;
 
 // Training states: WAITING -> READY -> ACTIVE <-> PAUSED -> STOPPED
 const TrainingState = {
@@ -119,6 +178,11 @@ function resetPoseTracking() {
     "<p class='title'>Warte auf Person im Bild</p><p class='muted'>Keypoints müssen stabil getrackt werden</p>";
   setAIStatus("Warte auf Person im Bild", "warn");
   updateReplayLog();
+  
+  // Clear skeleton canvas
+  if (skeletonCtx && skeletonCanvas) {
+    skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+  }
 }
 
 function simulateSkeletonFrame() {
@@ -130,14 +194,52 @@ function simulateSkeletonFrame() {
   const tempoOptions = ["kontrolliert", "explosiv", "langsam"];
   const tempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
   
-  // Simulate keypoints for replay visualization - ensure at least 17 for skeleton connections
-  const keypointCount = Math.max(17, keypointsTracked);
-  const keypoints = Array.from({ length: keypointCount }, (_, idx) => ({
-    id: idx,
-    x: 0.3 + Math.random() * 0.4,  // Normalized 0-1
-    y: 0.2 + Math.random() * 0.6,
-    confidence: confidence + (Math.random() - 0.5) * 0.2  // Vary confidence per keypoint
-  }));
+  // Improved perspective-independent keypoint simulation
+  // Simulate different viewing angles with more realistic pose variations
+  const viewAngle = Math.random(); // 0 = frontal, 0.5 = side, 1 = back
+  const perspective = viewAngle < 0.3 ? "frontal" : viewAngle < 0.7 ? "seitlich" : "schräg";
+  
+  // Apply perspective transformation and add natural movement variation
+  const keypoints = COCO_KEYPOINTS.map(kp => {
+    let x = kp.baseX;
+    let y = kp.baseY;
+    
+    // Add perspective distortion based on viewing angle
+    if (perspective === "seitlich") {
+      // Side view: compress x-axis, adjust based on body part depth
+      const depthFactor = (kp.id >= 5 && kp.id <= 16) ? 0.3 : 0.2;
+      x = 0.5 + (x - 0.5) * depthFactor;
+    } else if (perspective === "schräg") {
+      // Diagonal view: partial compression
+      const depthFactor = 0.6;
+      x = 0.5 + (x - 0.5) * depthFactor;
+    }
+    
+    // Add natural movement variation (smaller for stable poses)
+    const jitter = stability === "stable" ? 0.015 : 0.04;
+    x += (Math.random() - 0.5) * jitter;
+    y += (Math.random() - 0.5) * jitter;
+    
+    // Clamp to valid range
+    x = Math.max(0.1, Math.min(0.9, x));
+    y = Math.max(0.05, Math.min(0.95, y));
+    
+    // Vary confidence per keypoint based on stability and perspective
+    let kpConfidence = confidence + (Math.random() - 0.5) * 0.15;
+    
+    // Some keypoints harder to detect from certain angles
+    if (perspective === "seitlich" && (kp.name.includes("eye") || kp.name.includes("ear"))) {
+      kpConfidence *= 0.7; // Face features harder to see from side
+    }
+    
+    return {
+      id: kp.id,
+      name: kp.name,
+      x,
+      y,
+      confidence: Math.max(0.2, Math.min(1, kpConfidence))
+    };
+  });
   
   return {
     timestamp: Date.now(),
@@ -147,7 +249,8 @@ function simulateSkeletonFrame() {
     postureScore,
     rangeDelta,
     tempo,
-    keypoints
+    keypoints,
+    perspective
   };
 }
 
@@ -164,11 +267,67 @@ function updateReplayLog() {
       (frame, idx) => `
         <div class="log-item">
           <strong>Frame ${poseState.replayFrames.length - frames.length + idx + 1}</strong><br/>
-          <span class="muted small">${new Date(frame.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · Keypoints ${frame.keypointsTracked} · ${frame.stability}</span>
+          <span class="muted small">${new Date(frame.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · Keypoints ${frame.keypointsTracked} · ${frame.stability} · ${frame.perspective || 'frontal'}</span>
         </div>
       `
     )
     .join("");
+}
+
+function drawSkeletonOnCanvas(frame) {
+  if (!skeletonCanvas || !skeletonCtx) return;
+  if (!frame || !frame.keypoints || !frame.keypoints.length) return;
+  
+  // Clear canvas
+  skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+  
+  const width = skeletonCanvas.width;
+  const height = skeletonCanvas.height;
+  
+  // Draw connections
+  skeletonCtx.lineWidth = 3;
+  skeletonCtx.lineCap = 'round';
+  
+  SKELETON_CONNECTIONS.forEach(([a, b]) => {
+    const kpA = frame.keypoints[a];
+    const kpB = frame.keypoints[b];
+    
+    if (kpA && kpB && kpA.confidence > 0.3 && kpB.confidence > 0.3) {
+      const x1 = kpA.x * width;
+      const y1 = kpA.y * height;
+      const x2 = kpB.x * width;
+      const y2 = kpB.y * height;
+      
+      const avgConfidence = (kpA.confidence + kpB.confidence) / 2;
+      const opacity = Math.min(1, Math.max(0.3, avgConfidence));
+      
+      skeletonCtx.strokeStyle = getConfidenceColor(avgConfidence, opacity);
+      skeletonCtx.beginPath();
+      skeletonCtx.moveTo(x1, y1);
+      skeletonCtx.lineTo(x2, y2);
+      skeletonCtx.stroke();
+    }
+  });
+  
+  // Draw keypoints
+  frame.keypoints.forEach(kp => {
+    if (kp.confidence > 0.3) {
+      const x = kp.x * width;
+      const y = kp.y * height;
+      const radius = 4 + kp.confidence * 4;
+      const opacity = Math.min(1, Math.max(0.5, kp.confidence));
+      
+      skeletonCtx.fillStyle = getKeypointColor(kp.confidence, opacity);
+      skeletonCtx.beginPath();
+      skeletonCtx.arc(x, y, radius, 0, Math.PI * 2);
+      skeletonCtx.fill();
+      
+      // Add white border for visibility
+      skeletonCtx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      skeletonCtx.lineWidth = 1.5;
+      skeletonCtx.stroke();
+    }
+  });
 }
 
 function startPoseBootstrap() {
@@ -191,6 +350,9 @@ function startPoseBootstrap() {
     const frame = simulateSkeletonFrame();
     poseState.replayFrames.push(frame);
     if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
+    
+    // Draw skeleton on canvas in real-time
+    drawSkeletonOnCanvas(frame);
     
     // Store frame for current set
     if (poseState.trainingState === TrainingState.ACTIVE || poseState.trainingState === TrainingState.READY) {
@@ -324,37 +486,36 @@ function renderSkeletonViz(keypoints) {
   }
   
   // Create a simple 2D visualization of keypoints
-  const width = 200;
-  const height = 150;
-  let svg = `<svg width="${width}" height="${height}" style="background: #f8fafc; border-radius: 8px; margin-top: 8px;">`;
+  const width = 240;
+  const height = 180;
+  let svg = `<svg width="${width}" height="${height}" style="background: #0f172a; border-radius: 8px; margin-top: 8px;">`;
   
-  // Draw connections between keypoints (simplified skeleton)
-  const connections = [
-    [0, 1], [1, 2], [2, 3], [3, 4], // head to shoulders
-    [1, 5], [5, 6], [6, 7],         // left arm
-    [1, 8], [8, 9], [9, 10],        // right arm
-    [1, 11], [11, 12], [12, 13],    // left leg
-    [1, 14], [14, 15], [15, 16]     // right leg
-  ];
-  
-  connections.forEach(([a, b]) => {
-    if (keypoints[a] && keypoints[b]) {
+  // Draw connections between keypoints (COCO pose format)
+  SKELETON_CONNECTIONS.forEach(([a, b]) => {
+    if (keypoints[a] && keypoints[b] && keypoints[a].confidence > 0.3 && keypoints[b].confidence > 0.3) {
       const x1 = keypoints[a].x * width;
       const y1 = keypoints[a].y * height;
       const x2 = keypoints[b].x * width;
       const y2 = keypoints[b].y * height;
-      const opacity = Math.min(1, Math.max(0, Math.min(keypoints[a].confidence, keypoints[b].confidence)));
-      svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#6366f1" stroke-width="2" opacity="${opacity}" />`;
+      const avgConfidence = (keypoints[a].confidence + keypoints[b].confidence) / 2;
+      const opacity = Math.min(1, Math.max(0.3, avgConfidence));
+      
+      const color = getConfidenceColor(avgConfidence, opacity);
+      svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${color}" stroke-width="2.5" stroke-linecap="round" />`;
     }
   });
   
   // Draw keypoints
   keypoints.forEach(kp => {
-    const x = kp.x * width;
-    const y = kp.y * height;
-    const confidence = Math.min(1, Math.max(0, kp.confidence));
-    const radius = 3 + confidence * 2;
-    svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="#22d3ee" opacity="${confidence}" />`;
+    if (kp.confidence > 0.3) {
+      const x = kp.x * width;
+      const y = kp.y * height;
+      const confidence = Math.min(1, Math.max(0, kp.confidence));
+      const radius = 3 + confidence * 3;
+      
+      const color = getKeypointColor(kp.confidence, confidence);
+      svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="${color}" stroke="rgba(255, 255, 255, 0.8)" stroke-width="1.5" />`;
+    }
   });
   
   svg += '</svg>';
@@ -375,15 +536,33 @@ function renderSets() {
     .slice(-6)
     .reverse()
     .map(
-      (set, idx) => `
+      (set, idx) => {
+        const actualIdx = state.sets.length - 1 - idx;
+        return `
         <div class="log-item">
           <strong>${escapeHTML(set.exercise)}</strong> • ${set.reps} Wdh · Technik ${set.quality}%<br/>
           <span class="muted small">${new Date(set.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ROM: ${escapeHTML(set.rom)} · Tempo: ${escapeHTML(set.tempo)}</span>
-          ${set.frames && set.frames.length > 0 ? `<br/><button class="tiny-btn" onclick="replaySet(${state.sets.length - 1 - idx})">🔄 Replay anzeigen</button>` : ''}
+          <div style="margin-top: 8px; display: flex; gap: 8px;">
+            ${set.frames && set.frames.length > 0 ? `<button class="tiny-btn" onclick="replaySet(${actualIdx})">🔄 Replay anzeigen</button>` : ''}
+            <button class="tiny-btn" onclick="deleteSet(${actualIdx})" style="color: #dc2626;">🗑️ Löschen</button>
+          </div>
         </div>
-      `
+      `;
+      }
     )
     .join("");
+}
+
+function deleteSet(index) {
+  if (!confirm('Möchtest du diesen Satz wirklich löschen?')) {
+    return;
+  }
+  state.sets.splice(index, 1);
+  persist();
+  renderSets();
+  renderDashboard();
+  setAIStatus("Satz gelöscht", "info");
+  setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
 }
 
 function renderFoodLog() {
@@ -482,6 +661,24 @@ async function startCamera(facingMode = activeFacingMode) {
     const video = document.getElementById("camera-feed");
     video.srcObject = cameraStream;
     await video.play();
+    
+    // Initialize canvas for skeleton drawing
+    if (!skeletonCanvas) {
+      skeletonCanvas = document.getElementById("skeleton-canvas");
+      skeletonCtx = skeletonCanvas.getContext("2d");
+    }
+    
+    // Set canvas size to match video
+    const resizeCanvas = () => {
+      if (skeletonCanvas) {
+        skeletonCanvas.width = video.videoWidth || video.clientWidth;
+        skeletonCanvas.height = video.videoHeight || video.clientHeight;
+      }
+    };
+    
+    video.addEventListener('loadedmetadata', resizeCanvas);
+    resizeCanvas();
+    
     document.getElementById("camera-status").textContent = "Kamera live – warte auf Person";
     setAIStatus("Warte auf Person im Bild");
     return true;
@@ -502,6 +699,11 @@ function stopCamera() {
   poseState.personDetected = false;
   poseState.keypointsStable = false;
   document.getElementById("camera-status").textContent = "Kamera inaktiv";
+  
+  // Clear skeleton canvas
+  if (skeletonCtx && skeletonCanvas) {
+    skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
+  }
 }
 
 function startRepDetection() {
@@ -531,6 +733,9 @@ function startRepDetection() {
     const frame = simulateSkeletonFrame();
     poseState.replayFrames.push(frame);
     if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
+    
+    // Draw skeleton on canvas in real-time
+    drawSkeletonOnCanvas(frame);
     
     // Store frame for current set
     poseState.currentSetFrames.push(frame);
@@ -1034,5 +1239,6 @@ window.addEventListener("beforeunload", () => {
   stopCamera();
 });
 
-// Make replaySet available globally for inline onclick handlers
+// Make replaySet and deleteSet available globally for inline onclick handlers
 window.replaySet = replaySet;
+window.deleteSet = deleteSet;

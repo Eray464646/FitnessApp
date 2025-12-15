@@ -54,12 +54,30 @@ Das System verwendet eine State Machine für saubere Zustandsverwaltung:
    - Alle Intervals gestoppt
    - Aktueller Satz wird gespeichert
 
-### Skeleton Replay
-- Jeder Satz speichert alle erfassten Frames
-- Replay zeigt 2D-Skeleton-Visualisierung
-- Keypoints mit Confidence-Levels
-- Verbindungslinien zwischen Körperteilen
+### Live Skeleton Visualization
+- **Echtzeit-Darstellung** des Skeletts während des Trainings auf Canvas-Overlay
+- **17 COCO-Standard-Keypoints**: Nase, Augen, Ohren, Schultern, Ellbogen, Handgelenke, Hüften, Knie, Knöchel
+- **Perspektivunabhängige Erkennung**: frontal, seitlich, schräg
+- **Farbcodierte Qualitätsanzeige**:
+  - Grün/Cyan: Hohe Confidence (>75%)
+  - Gelb: Mittlere Confidence (50-75%)
+  - Rot: Niedrige Confidence (<50%)
+- **Adaptive Keypoint-Größe** basierend auf Confidence-Level
+- **Realistische Bewegungssimulation** mit reduziertem Jitter für stabile Posen
+
+### Skeleton Replay & Analyse
+- Jeder Satz speichert alle erfassten Frames mit vollständigen Keypoint-Daten
+- Replay zeigt 2D-Skeleton-Visualisierung mit farbcodierten Keypoints
+- Keypoints mit individuellen Confidence-Levels pro Gelenk
+- Verbindungslinien zwischen Körperteilen (COCO-Format)
 - Frame-by-Frame-Durchlauf mit Fortschrittsbalken
+- Perspektive-Information (frontal/seitlich/schräg) im Replay-Log
+- Qualitätsmetriken und Form-Feedback
+
+### Datenverwaltung
+- **Löschfunktion** für gespeicherte Sätze mit Bestätigungsdialog
+- Automatische Persistierung in localStorage
+- Komplettes Training-Log mit Wiederholungen, ROM, Tempo und Technik-Score
 
 ### Hinweise zur Nutzung
 - Kamera wird nur nach Opt-in verwendet und kann jederzeit deaktiviert werden. Rohvideo wird nicht gespeichert.  
