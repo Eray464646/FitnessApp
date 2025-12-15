@@ -42,11 +42,23 @@ let poseDetectionInterval;
 let replayTimer;
 let activeFacingMode = "environment";
 let currentFacingMode = "environment";
+
+// Training states: WAITING -> READY -> ACTIVE <-> PAUSED -> STOPPED
+const TrainingState = {
+  WAITING: "WAITING",      // Waiting for person to be detected
+  READY: "READY",          // Person detected and stable, ready to start
+  ACTIVE: "ACTIVE",        // Actively tracking movements
+  PAUSED: "PAUSED",        // Paused by user, no auto-reactivation
+  STOPPED: "STOPPED"       // Training ended, camera off
+};
+
 const poseState = {
   personDetected: false,
   keypointsStable: false,
   ready: false,
-  replayFrames: []
+  replayFrames: [],
+  trainingState: TrainingState.STOPPED,
+  currentSetFrames: []  // Frames for the current set
 };
 const motionTracker = {
   progress: 0,
@@ -98,7 +110,7 @@ function resetPoseTracking() {
   poseState.personDetected = false;
   poseState.keypointsStable = false;
   poseState.ready = false;
-  poseState.replayFrames = [];
+  poseState.currentSetFrames = [];
   motionTracker.progress = 0;
   document.getElementById("rep-count").textContent = "0";
   document.getElementById("tempo-info").textContent = "Tempo: —";
@@ -117,6 +129,16 @@ function simulateSkeletonFrame() {
   const postureScore = Math.min(1, 0.65 + Math.random() * 0.35);
   const tempoOptions = ["kontrolliert", "explosiv", "langsam"];
   const tempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
+  
+  // Simulate keypoints for replay visualization - ensure at least 17 for skeleton connections
+  const keypointCount = Math.max(17, keypointsTracked);
+  const keypoints = Array.from({ length: keypointCount }, (_, idx) => ({
+    id: idx,
+    x: 0.3 + Math.random() * 0.4,  // Normalized 0-1
+    y: 0.2 + Math.random() * 0.6,
+    confidence: confidence + (Math.random() - 0.5) * 0.2  // Vary confidence per keypoint
+  }));
+  
   return {
     timestamp: Date.now(),
     keypointsTracked,
@@ -124,7 +146,8 @@ function simulateSkeletonFrame() {
     stability,
     postureScore,
     rangeDelta,
-    tempo
+    tempo,
+    keypoints
   };
 }
 
@@ -151,13 +174,30 @@ function updateReplayLog() {
 function startPoseBootstrap() {
   clearInterval(poseDetectionInterval);
   resetPoseTracking();
+  poseState.trainingState = TrainingState.WAITING;
   let stableFrames = 0;
   let lostFrames = 0;
   poseDetectionInterval = setInterval(() => {
-    if (!cameraStream) return;
+    if (!cameraStream || poseState.trainingState === TrainingState.STOPPED) {
+      clearInterval(poseDetectionInterval);
+      return;
+    }
+    
+    // Don't process if paused - maintain pause state
+    if (poseState.trainingState === TrainingState.PAUSED) {
+      return;
+    }
+    
     const frame = simulateSkeletonFrame();
     poseState.replayFrames.push(frame);
     if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
+    
+    // Store frame for current set
+    if (poseState.trainingState === TrainingState.ACTIVE || poseState.trainingState === TrainingState.READY) {
+      poseState.currentSetFrames.push(frame);
+      if (poseState.currentSetFrames.length > 200) poseState.currentSetFrames.shift();
+    }
+    
     updateReplayLog();
 
     lostFrames = frame.confidence < 0.45 ? lostFrames + 1 : 0;
@@ -165,6 +205,7 @@ function startPoseBootstrap() {
       poseState.personDetected = false;
       poseState.keypointsStable = false;
       poseState.ready = false;
+      poseState.trainingState = TrainingState.WAITING;
       stableFrames = 0;
       clearInterval(repInterval);
       document.getElementById("camera-status").textContent = "Warte auf Person...";
@@ -189,8 +230,9 @@ function startPoseBootstrap() {
       }
     }
 
-    if (poseState.keypointsStable && !poseState.ready) {
+    if (poseState.keypointsStable && !poseState.ready && poseState.trainingState === TrainingState.WAITING) {
       poseState.ready = true;
+      poseState.trainingState = TrainingState.READY;
       document.getElementById("training-feedback").innerHTML =
         "<p class='title'>Pose stabil</p><p class='muted'>Start-Position erkannt – Bewegung verfolgen</p>";
       startRepDetection();
@@ -213,6 +255,7 @@ function playReplay() {
       <div class="log-item">
         <strong>Replay ${idx + 1}/${frames.length}</strong><br/>
         <span class="muted small">${new Date(frame.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · Keypoints ${frame.keypointsTracked} · ${frame.stability}</span>
+        <div class="skeleton-viz">${renderSkeletonViz(frame.keypoints)}</div>
       </div>
     `;
     idx += 1;
@@ -221,6 +264,101 @@ function playReplay() {
       updateReplayLog();
     }
   }, 500);
+}
+
+function replaySet(setIndex) {
+  const set = state.sets[setIndex];
+  if (!set || !set.frames || !set.frames.length) {
+    alert("Keine Aufzeichnung für diesen Satz verfügbar");
+    return;
+  }
+  
+  const container = document.getElementById("replay-log");
+  clearInterval(replayTimer);
+  
+  let idx = 0;
+  const frames = set.frames;
+  
+  container.innerHTML = `
+    <div class="log-item">
+      <strong>Set Replay: ${escapeHTML(set.exercise)}</strong><br/>
+      <span class="muted small">Starte Replay von ${frames.length} Frames...</span>
+    </div>
+  `;
+  
+  replayTimer = setInterval(() => {
+    const frame = frames[idx];
+    container.innerHTML = `
+      <div class="log-item">
+        <strong>Set Replay: ${escapeHTML(set.exercise)} - Frame ${idx + 1}/${frames.length}</strong><br/>
+        <span class="muted small">
+          Qualität: ${Math.round(frame.postureScore * 100)}% · 
+          Keypoints: ${frame.keypointsTracked} · 
+          ${frame.stability}
+        </span>
+        <div class="skeleton-viz">${renderSkeletonViz(frame.keypoints)}</div>
+        <div class="progress-bar" style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 8px;">
+          <div style="width: ${(idx / frames.length) * 100}%; height: 100%; background: linear-gradient(135deg, #6366f1, #22d3ee); border-radius: 2px;"></div>
+        </div>
+      </div>
+    `;
+    idx += 1;
+    if (idx >= frames.length) {
+      clearInterval(replayTimer);
+      setTimeout(() => {
+        container.innerHTML = `
+          <div class="log-item">
+            <strong>Replay abgeschlossen</strong><br/>
+            <span class="muted small">Satz: ${escapeHTML(set.exercise)} · ${set.reps} Wdh · Technik ${set.quality}%</span>
+            <button class="tiny-btn" onclick="replaySet(${setIndex})">🔄 Erneut abspielen</button>
+          </div>
+        `;
+      }, 1000);
+    }
+  }, 400);
+}
+
+function renderSkeletonViz(keypoints) {
+  if (!keypoints || !keypoints.length) {
+    return '<span class="muted small">Keine Keypoints verfügbar</span>';
+  }
+  
+  // Create a simple 2D visualization of keypoints
+  const width = 200;
+  const height = 150;
+  let svg = `<svg width="${width}" height="${height}" style="background: #f8fafc; border-radius: 8px; margin-top: 8px;">`;
+  
+  // Draw connections between keypoints (simplified skeleton)
+  const connections = [
+    [0, 1], [1, 2], [2, 3], [3, 4], // head to shoulders
+    [1, 5], [5, 6], [6, 7],         // left arm
+    [1, 8], [8, 9], [9, 10],        // right arm
+    [1, 11], [11, 12], [12, 13],    // left leg
+    [1, 14], [14, 15], [15, 16]     // right leg
+  ];
+  
+  connections.forEach(([a, b]) => {
+    if (keypoints[a] && keypoints[b]) {
+      const x1 = keypoints[a].x * width;
+      const y1 = keypoints[a].y * height;
+      const x2 = keypoints[b].x * width;
+      const y2 = keypoints[b].y * height;
+      const opacity = Math.min(1, Math.max(0, Math.min(keypoints[a].confidence, keypoints[b].confidence)));
+      svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#6366f1" stroke-width="2" opacity="${opacity}" />`;
+    }
+  });
+  
+  // Draw keypoints
+  keypoints.forEach(kp => {
+    const x = kp.x * width;
+    const y = kp.y * height;
+    const confidence = Math.min(1, Math.max(0, kp.confidence));
+    const radius = 3 + confidence * 2;
+    svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="#22d3ee" opacity="${confidence}" />`;
+  });
+  
+  svg += '</svg>';
+  return svg;
 }
 
 function todayKey() {
@@ -237,10 +375,11 @@ function renderSets() {
     .slice(-6)
     .reverse()
     .map(
-      (set) => `
+      (set, idx) => `
         <div class="log-item">
           <strong>${escapeHTML(set.exercise)}</strong> • ${set.reps} Wdh · Technik ${set.quality}%<br/>
           <span class="muted small">${new Date(set.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ROM: ${escapeHTML(set.rom)} · Tempo: ${escapeHTML(set.tempo)}</span>
+          ${set.frames && set.frames.length > 0 ? `<br/><button class="tiny-btn" onclick="replaySet(${state.sets.length - 1 - idx})">🔄 Replay anzeigen</button>` : ''}
         </div>
       `
     )
@@ -372,8 +511,15 @@ function startRepDetection() {
       "<p class='title'>Warte auf stabile Pose</p><p class='muted'>Tracking startet nach Keypoints</p>";
     return;
   }
+  
+  poseState.trainingState = TrainingState.ACTIVE;
   setAIStatus("Tracking aktiv");
   repInterval = setInterval(() => {
+    // Don't count reps if not in active state
+    if (poseState.trainingState !== TrainingState.ACTIVE) {
+      return;
+    }
+    
     if (!poseState.personDetected || !poseState.keypointsStable) {
       motionTracker.progress = 0;
       document.getElementById("training-feedback").innerHTML =
@@ -385,6 +531,11 @@ function startRepDetection() {
     const frame = simulateSkeletonFrame();
     poseState.replayFrames.push(frame);
     if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
+    
+    // Store frame for current set
+    poseState.currentSetFrames.push(frame);
+    if (poseState.currentSetFrames.length > 200) poseState.currentSetFrames.shift();
+    
     updateReplayLog();
 
     if (frame.stability !== "stable" || frame.confidence < 0.65) {
@@ -427,6 +578,13 @@ async function handleStartTraining() {
     consent.checked = true;
     state.profile.cameraConsent = true;
   }
+  
+  // If paused, resume instead of restarting
+  if (poseState.trainingState === TrainingState.PAUSED) {
+    resumeTraining();
+    return;
+  }
+  
   activeFacingMode = document.getElementById("camera-facing").value || "environment";
   const ok = (cameraStream && currentFacingMode === activeFacingMode) || (await startCamera(activeFacingMode));
   if (!ok) return;
@@ -434,11 +592,49 @@ async function handleStartTraining() {
 }
 
 function pauseTraining() {
+  if (poseState.trainingState !== TrainingState.ACTIVE && poseState.trainingState !== TrainingState.READY) {
+    return;
+  }
+  
   clearInterval(repInterval);
-  poseState.ready = false;
+  poseState.trainingState = TrainingState.PAUSED;
   document.getElementById("training-feedback").innerHTML =
-    "<p class='title'>Pausiert</p><p class='muted'>Bleib in Bewegung</p>";
-  setAIStatus("Tracking pausiert");
+    "<p class='title'>Training pausiert</p><p class='muted'>Klicke 'KI-Tracking starten' zum Fortfahren</p>";
+  setAIStatus("Training pausiert", "warn");
+  document.getElementById("camera-status").textContent = "Pausiert";
+}
+
+function resumeTraining() {
+  if (poseState.trainingState !== TrainingState.PAUSED) {
+    return;
+  }
+  
+  if (poseState.keypointsStable && poseState.personDetected) {
+    poseState.trainingState = TrainingState.ACTIVE;
+    startRepDetection();
+    document.getElementById("camera-status").textContent = "Tracking aktiv";
+    setAIStatus("Training fortgesetzt");
+  } else {
+    // If person lost during pause, restart bootstrap
+    poseState.trainingState = TrainingState.WAITING;
+    startPoseBootstrap();
+  }
+}
+
+function stopTraining() {
+  poseState.trainingState = TrainingState.STOPPED;
+  clearInterval(repInterval);
+  clearInterval(poseDetectionInterval);
+  stopCamera();
+  
+  document.getElementById("training-feedback").innerHTML =
+    "<p class='title'>Training beendet</p><p class='muted'>Kamera ausgeschaltet</p>";
+  setAIStatus("Training beendet");
+  
+  // Save current set if there are reps
+  if (repCount > 0) {
+    saveSet(false);
+  }
 }
 
 function saveSet(auto = false) {
@@ -459,10 +655,15 @@ function saveSet(auto = false) {
     rom: romLabel,
     quality: qualityScore,
     timestamp: new Date().toISOString(),
-    auto
+    auto,
+    // Store skeleton frames for replay
+    frames: poseState.currentSetFrames.slice()
   };
   state.sets.push(set);
+  
+  // Reset for next set
   repCount = 0;
+  poseState.currentSetFrames = [];
   document.getElementById("rep-count").textContent = "0";
   document.getElementById("tempo-info").textContent = "Tempo: —";
   document.getElementById("training-feedback").innerHTML =
@@ -470,6 +671,11 @@ function saveSet(auto = false) {
   persist();
   renderSets();
   renderDashboard();
+  
+  // Resume if paused, otherwise continue tracking
+  if (poseState.trainingState === TrainingState.PAUSED) {
+    resumeTraining();
+  }
 }
 
 async function detectFoodWithAI(imageDataUrl) {
@@ -800,6 +1006,7 @@ function bindProfile() {
 document.getElementById("start-training").addEventListener("click", handleStartTraining);
 document.getElementById("pause-training").addEventListener("click", pauseTraining);
 document.getElementById("save-set").addEventListener("click", () => saveSet(false));
+document.getElementById("stop-training").addEventListener("click", stopTraining);
 document.getElementById("food-input").addEventListener("change", handleFoodInput);
 document.getElementById("portion-slider").addEventListener("input", renderFoodDetection);
 document.getElementById("save-food").addEventListener("click", saveFoodEntry);
@@ -826,3 +1033,6 @@ window.addEventListener("beforeunload", () => {
   if (!cameraStream) return;
   stopCamera();
 });
+
+// Make replaySet available globally for inline onclick handlers
+window.replaySet = replaySet;
