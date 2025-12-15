@@ -52,13 +52,13 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 - `User`: Basisdaten, Ziele, Level, Präferenzen, Geräte.  
 - `TrainingSession`: start/end, erkannte Übung(en), `Set[]`, Technik-Score, Pausen.  
 - `Set`: Übung, Wiederholungen, Gewicht (optional), Tempo, ROM, Fehler.  
-- `Exercise`: Name, Typ (Körpergewicht/Gewicht/Gerät), Bewegungsmuster, empfohlenes Tempo und Range of Motion (ROM).  
+- `Exercise`: Name, Typ (Körpergewicht/Gewicht/Gerät), Bewegungsmuster, empfohlenes Tempo und Range of Motion.  
 - `Plan`: Wochenstruktur, Ziel, Frequenz, Alternativübungen.  
 - `FoodEntry`: Bild-Referenz, Zutaten, Portion, Kalorien, Makros, Korrekturen.  
 - `Recommendation`: Ernährung (Protein/Kalorien), Training (Load/Deload), Regeneration.
 
 ### Technische Architektur (Kurzfassung)
-- **Frontend**: PWA, Mobile-First UI (z. B. React/Vue/Next/Nuxt), Service Worker für Offline-Caches, Web Share, Camera API (getUserMedia), Vibration API für Feedback.  
+- **Frontend**: PWA, Mobile-First UI (z. B. React/Next oder Vue/Nuxt), Service Worker für Offline-Caches, Web Share, Camera API (getUserMedia), Vibration API für Feedback.  
 - **On-Device KI**: WebAssembly/WebGPU-Modelle (Pose/Rep/ROM), Fallback auf Server-Inferenz bei schwachen Geräten.  
 - **Backend/Services**:  
   - Auth + Profile + Plans  
@@ -75,7 +75,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 ### KI/ML-Pipeline (high-level)
 1. **Pose Detection** (on-device) → Keypoints.  
 2. **Rep & Tempo Detection** → Wiederholungen/Sätze, ROM/Tempo/Explosivität.  
-3. **Form Assessment** → Fehlerklassen (Knie-Valgus-Fehlstellung, Rundrücken, Tiefe, Balance).  
+3. **Form Assessment** → Fehlerklassen (Knie-Valgus-Fehlstellung/Knie nach innen, Rundrücken, Tiefe, Balance).  
 4. **Scoring** → Technik-Score pro Satz, Confidence.  
 5. **Training Plan Adapter** → Load-Anpassung, Übungsalternativen.  
 6. **Food Vision** → Zutaten + Portion → Kalorien/Makros → Tagebuch.  
