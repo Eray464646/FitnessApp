@@ -35,6 +35,15 @@ let repCount = 0;
 let tempoLabel = "—";
 let lastFoodDetection;
 
+function escapeHTML(str) {
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 const views = document.querySelectorAll(".view");
 const navButtons = document.querySelectorAll(".nav-btn");
 const quickNavButtons = document.querySelectorAll("[data-nav-target]");
@@ -81,8 +90,8 @@ function renderSets() {
     .map(
       (set) => `
         <div class="log-item">
-          <strong>${set.exercise}</strong> • ${set.reps} Wdh · Technik ${set.quality}%<br/>
-          <span class="muted small">${new Date(set.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ROM: ${set.rom} · Tempo: ${set.tempo}</span>
+          <strong>${escapeHTML(set.exercise)}</strong> • ${set.reps} Wdh · Technik ${set.quality}%<br/>
+          <span class="muted small">${new Date(set.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ROM: ${escapeHTML(set.rom)} · Tempo: ${escapeHTML(set.tempo)}</span>
         </div>
       `
     )
@@ -101,7 +110,7 @@ function renderFoodLog() {
     .map(
       (entry) => `
       <div class="log-item">
-        <strong>${entry.label}</strong> • ${entry.calories} kcal<br/>
+        <strong>${escapeHTML(entry.label)}</strong> • ${entry.calories} kcal<br/>
         <span class="muted small">Protein ${entry.protein} g · KH ${entry.carbs} g · Fett ${entry.fat} g · ${new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
       </div>
     `
@@ -151,7 +160,7 @@ function renderDashboard() {
   const nextSession = document.getElementById("next-session");
   nextSession.innerHTML = state.plan.days
     .slice(0, 2)
-    .map((d) => `<span class="pill">${d.day}: ${d.focus}</span>`)
+    .map((d) => `<span class="pill">${escapeHTML(d.day)}: ${escapeHTML(d.focus)}</span>`)
     .join("");
 
   const recent = [...state.sets, ...state.foodEntries]
@@ -162,7 +171,7 @@ function renderDashboard() {
       return `
         <div class="activity-item">
           <div>
-            <strong>${isSet ? item.exercise : item.label}</strong><br/>
+            <strong>${escapeHTML(isSet ? item.exercise : item.label)}</strong><br/>
             <span class="muted small">${isSet ? `${item.reps} Wdh · Technik ${item.quality}%` : `${item.calories} kcal`}</span>
           </div>
           <span class="muted small">${new Date(item.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
@@ -205,7 +214,8 @@ function startRepDetection() {
   repInterval = setInterval(() => {
     const detected = Math.random() > 0.6 ? 2 : 1;
     repCount += detected;
-    tempoLabel = ["kontrolliert", "explosiv", "langsam"].sort(() => 0.5 - Math.random())[0];
+    const tempos = ["kontrolliert", "explosiv", "langsam"];
+    tempoLabel = tempos[Math.floor(Math.random() * tempos.length)];
     document.getElementById("rep-count").textContent = repCount;
     document.getElementById("tempo-info").textContent = `Tempo: ${tempoLabel}`;
     document.getElementById("training-feedback").innerHTML =
@@ -284,7 +294,7 @@ function renderFoodDetection() {
     fat: Math.round(lastFoodDetection.fat * portion)
   };
   document.getElementById("food-details").innerHTML = `
-    <strong>${lastFoodDetection.label}</strong><br/>
+    <strong>${escapeHTML(lastFoodDetection.label)}</strong><br/>
     <span class="muted small">Kalorien ${scaled.calories} · Protein ${scaled.protein} g · KH ${scaled.carbs} g · Fett ${scaled.fat} g</span>
   `;
   return scaled;
@@ -355,8 +365,8 @@ function renderPlan() {
     .map(
       (d) => `
     <div class="log-item">
-      <strong>${d.day}</strong> – ${d.focus}<br/>
-      <span class="muted small">${d.exercises.join(" · ")}</span>
+      <strong>${escapeHTML(d.day)}</strong> – ${escapeHTML(d.focus)}<br/>
+      <span class="muted small">${d.exercises.map(escapeHTML).join(" · ")}</span>
     </div>`
     )
     .join("");
