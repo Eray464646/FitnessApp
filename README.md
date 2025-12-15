@@ -15,6 +15,7 @@ Interaktive mobile Web-App (ohne Build-Tools) für KI-gestützte Bewegungserkenn
 - **KI-Trainingsplanung:** Formular für Ziel, Level, Frequenz und Equipment; generierter Wochenplan inkl. Exercises.  
 - **Integration & Datenschutz:** Dashboard verbindet Training/Ernährung, Profil mit Kamera-Opt-in, Wearable-Toggle, Vibration/Notifications.  
 - **Lokale Persistenz:** Alle Logs, Plan und Profileinstellungen werden in `localStorage` gesichert.
+- **Pose-basiertes Tracking:** Zählt Wiederholungen nur nach stabiler Person-/Keypoint-Erkennung, unterstützt Front-/Rückkamera und bietet ein Skelett-Replay.
 
 ### Hinweise zur Nutzung
 - Kamera wird nur nach Opt-in verwendet und kann jederzeit deaktiviert werden. Rohvideo wird nicht gespeichert.  

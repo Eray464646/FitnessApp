@@ -95,6 +95,13 @@
                 <option value="Rows mit Band">Rows mit Band</option>
               </select>
             </label>
+            <label class="chip">
+              Kamera
+              <select id="camera-facing">
+                <option value="environment">Rückkamera</option>
+                <option value="user">Frontkamera</option>
+              </select>
+            </label>
           </header>
 
           <div class="camera-panel">
@@ -125,6 +132,14 @@
               <span class="muted">Automatisch erfasst</span>
             </div>
             <div id="sets-list" class="stack"></div>
+          </div>
+
+          <div class="card log-card">
+            <div class="block-header">
+              <h3>Pose Replay</h3>
+              <button class="tiny-btn" id="play-replay">Replay ansehen</button>
+            </div>
+            <div id="replay-log" class="stack"></div>
           </div>
         </section>
 

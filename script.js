@@ -34,6 +34,22 @@ let repInterval;
 let repCount = 0;
 let tempoLabel = "—";
 let lastFoodDetection;
+let poseDetectionInterval;
+let replayTimer;
+let activeFacingMode = "environment";
+let currentFacingMode = "environment";
+const poseState = {
+  personDetected: false,
+  keypointsStable: false,
+  ready: false,
+  replayFrames: []
+};
+const motionTracker = {
+  progress: 0,
+  lastQuality: 0,
+  lastROM: "teilweise",
+  lastTempo: "kontrolliert"
+};
 
 function escapeHTML(str) {
   return String(str)
@@ -72,6 +88,135 @@ function setAIStatus(text, tone = "info") {
   pill.textContent = text;
   pill.style.background = tone === "warn" ? "#fee2e2" : "#e0e7ff";
   pill.style.color = tone === "warn" ? "#b91c1c" : "#3730a3";
+}
+
+function resetPoseTracking() {
+  poseState.personDetected = false;
+  poseState.keypointsStable = false;
+  poseState.ready = false;
+  poseState.replayFrames = [];
+  motionTracker.progress = 0;
+  document.getElementById("rep-count").textContent = "0";
+  document.getElementById("tempo-info").textContent = "Tempo: —";
+  repCount = 0;
+  document.getElementById("training-feedback").innerHTML =
+    "<p class='title'>Warte auf Person im Bild</p><p class='muted'>Keypoints müssen stabil getrackt werden</p>";
+  setAIStatus("Warte auf Person im Bild", "warn");
+  updateReplayLog();
+}
+
+function simulateSkeletonFrame() {
+  const keypointsTracked = 12 + Math.floor(Math.random() * 5);
+  const confidence = 0.55 + Math.random() * 0.4;
+  const stability = confidence > 0.7 && Math.random() > 0.2 ? "stable" : "shaky";
+  const rangeDelta = stability === "stable" ? 0.28 + Math.random() * 0.25 : 0.08;
+  const postureScore = Math.min(1, 0.65 + Math.random() * 0.35);
+  const tempoOptions = ["kontrolliert", "explosiv", "langsam"];
+  const tempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
+  return {
+    timestamp: Date.now(),
+    keypointsTracked,
+    confidence,
+    stability,
+    postureScore,
+    rangeDelta,
+    tempo
+  };
+}
+
+function updateReplayLog() {
+  const container = document.getElementById("replay-log");
+  if (!container) return;
+  if (!poseState.replayFrames.length) {
+    container.innerHTML = `<div class="log-item muted">Noch keine Aufzeichnung</div>`;
+    return;
+  }
+  const frames = poseState.replayFrames.slice(-5);
+  container.innerHTML = frames
+    .map(
+      (frame, idx) => `
+        <div class="log-item">
+          <strong>Frame ${poseState.replayFrames.length - frames.length + idx + 1}</strong><br/>
+          <span class="muted small">${new Date(frame.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · Keypoints ${frame.keypointsTracked} · ${frame.stability}</span>
+        </div>
+      `
+    )
+    .join("");
+}
+
+function startPoseBootstrap() {
+  clearInterval(poseDetectionInterval);
+  resetPoseTracking();
+  let stableFrames = 0;
+  let lostFrames = 0;
+  poseDetectionInterval = setInterval(() => {
+    if (!cameraStream) return;
+    const frame = simulateSkeletonFrame();
+    poseState.replayFrames.push(frame);
+    if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
+    updateReplayLog();
+
+    lostFrames = frame.confidence < 0.45 ? lostFrames + 1 : 0;
+    if (lostFrames >= 3) {
+      poseState.personDetected = false;
+      poseState.keypointsStable = false;
+      poseState.ready = false;
+      stableFrames = 0;
+      clearInterval(repInterval);
+      document.getElementById("camera-status").textContent = "Warte auf Person...";
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Warte auf Person im Bild</p><p class='muted'>Tracking pausiert</p>";
+      setAIStatus("Warte auf Person im Bild", "warn");
+      return;
+    }
+
+    if (!poseState.personDetected && frame.confidence > 0.65) {
+      poseState.personDetected = true;
+      document.getElementById("camera-status").textContent = "Person erkannt";
+      setAIStatus("Person erkannt");
+    }
+
+    if (poseState.personDetected) {
+      stableFrames = frame.stability === "stable" && frame.confidence > 0.7 ? stableFrames + 1 : Math.max(0, stableFrames - 1);
+      if (!poseState.keypointsStable && stableFrames >= 3) {
+        poseState.keypointsStable = true;
+        document.getElementById("camera-status").textContent = "Keypoints stabil";
+        setAIStatus("Pose stabil – Tracking startet");
+      }
+    }
+
+    if (poseState.keypointsStable && !poseState.ready) {
+      poseState.ready = true;
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Pose stabil</p><p class='muted'>Start-Position erkannt – Bewegung verfolgen</p>";
+      startRepDetection();
+    }
+  }, 800);
+}
+
+function playReplay() {
+  const container = document.getElementById("replay-log");
+  if (!poseState.replayFrames.length) {
+    container.innerHTML = `<div class="log-item muted">Keine Aufzeichnung verfügbar</div>`;
+    return;
+  }
+  clearInterval(replayTimer);
+  const frames = poseState.replayFrames.slice(-20);
+  let idx = 0;
+  replayTimer = setInterval(() => {
+    const frame = frames[idx];
+    container.innerHTML = `
+      <div class="log-item">
+        <strong>Replay ${idx + 1}/${frames.length}</strong><br/>
+        <span class="muted small">${new Date(frame.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" })} · Keypoints ${frame.keypointsTracked} · ${frame.stability}</span>
+      </div>
+    `;
+    idx += 1;
+    if (idx >= frames.length) {
+      clearInterval(replayTimer);
+      updateReplayLog();
+    }
+  }, 500);
 }
 
 function todayKey() {
@@ -182,18 +327,20 @@ function renderDashboard() {
   document.getElementById("recent-activity").innerHTML = recent || `<div class="muted">Keine Aktivitäten</div>`;
 }
 
-async function startCamera() {
+async function startCamera(facingMode = activeFacingMode) {
   if (!navigator.mediaDevices?.getUserMedia) {
     setAIStatus("Kamera nicht verfügbar", "warn");
     return false;
   }
   try {
-    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+    stopCamera();
+    currentFacingMode = facingMode;
+    cameraStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode } });
     const video = document.getElementById("camera-feed");
     video.srcObject = cameraStream;
     await video.play();
-    document.getElementById("camera-status").textContent = "Live: Haltung wird erkannt";
-    setAIStatus("Tracking aktiv");
+    document.getElementById("camera-status").textContent = "Kamera live – warte auf Person";
+    setAIStatus("Warte auf Person im Bild");
     return true;
   } catch (e) {
     console.error(e);
@@ -206,24 +353,68 @@ async function startCamera() {
 function stopCamera() {
   cameraStream?.getTracks().forEach((t) => t.stop());
   cameraStream = null;
+  clearInterval(repInterval);
+  clearInterval(poseDetectionInterval);
+  poseState.ready = false;
+  poseState.personDetected = false;
+  poseState.keypointsStable = false;
   document.getElementById("camera-status").textContent = "Kamera inaktiv";
 }
 
 function startRepDetection() {
   clearInterval(repInterval);
-  repInterval = setInterval(() => {
-    const detected = Math.random() > 0.6 ? 2 : 1;
-    repCount += detected;
-    const tempos = ["kontrolliert", "explosiv", "langsam"];
-    tempoLabel = tempos[Math.floor(Math.random() * tempos.length)];
-    document.getElementById("rep-count").textContent = repCount;
-    document.getElementById("tempo-info").textContent = `Tempo: ${tempoLabel}`;
+  if (!poseState.keypointsStable) {
     document.getElementById("training-feedback").innerHTML =
-      repCount % 6 === 0
-        ? "<p class='title'>Super Haltung</p><p class='muted'>Tiefe & Knie stabil</p>"
-        : "<p class='title'>Weiter so</p><p class='muted'>Kern aktiv halten</p>";
-    if (repCount >= 12) saveSet(true);
-  }, 1800);
+      "<p class='title'>Warte auf stabile Pose</p><p class='muted'>Tracking startet nach Keypoints</p>";
+    return;
+  }
+  setAIStatus("Tracking aktiv");
+  repInterval = setInterval(() => {
+    if (!poseState.personDetected || !poseState.keypointsStable) {
+      motionTracker.progress = 0;
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Person verloren</p><p class='muted'>Warte auf stabile Keypoints</p>";
+      setAIStatus("Warte auf Person im Bild", "warn");
+      return;
+    }
+
+    const frame = simulateSkeletonFrame();
+    poseState.replayFrames.push(frame);
+    if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
+    updateReplayLog();
+
+    if (frame.stability !== "stable" || frame.confidence < 0.65) {
+      motionTracker.progress = Math.max(0, motionTracker.progress - 0.2);
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Tracking instabil</p><p class='muted'>Position ruhig halten</p>";
+      return;
+    }
+
+    motionTracker.progress = Math.min(1, motionTracker.progress + frame.rangeDelta);
+    motionTracker.lastTempo = frame.tempo;
+    motionTracker.lastQuality = Math.round(frame.postureScore * 100);
+    motionTracker.lastROM =
+      motionTracker.progress >= 0.95 ? "voll" : motionTracker.progress >= 0.6 ? "teilweise" : "unvollständig";
+    tempoLabel = frame.tempo;
+
+    const feedback =
+      motionTracker.progress < 0.3
+        ? "<p class='title'>Start-Position</p><p class='muted'>Haltung beibehalten</p>"
+        : motionTracker.progress < 0.8
+          ? "<p class='title'>Bewegung erkannt</p><p class='muted'>Volle ROM ausführen</p>"
+          : "<p class='title'>End-Position</p><p class='muted'>Spanne Core an</p>";
+    document.getElementById("training-feedback").innerHTML = feedback;
+
+    if (motionTracker.progress >= 1) {
+      repCount += 1;
+      motionTracker.progress = 0;
+      document.getElementById("rep-count").textContent = repCount;
+      document.getElementById("tempo-info").textContent = `Tempo: ${tempoLabel}`;
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Saubere Wiederholung</p><p class='muted'>Start → Bewegung → End-Position</p>";
+      if (repCount >= 12) saveSet(true);
+    }
+  }, 950);
 }
 
 async function handleStartTraining() {
@@ -232,13 +423,15 @@ async function handleStartTraining() {
     consent.checked = true;
     state.profile.cameraConsent = true;
   }
-  const ok = cameraStream || (await startCamera());
+  activeFacingMode = document.getElementById("camera-facing").value || "environment";
+  const ok = (cameraStream && currentFacingMode === activeFacingMode) || (await startCamera(activeFacingMode));
   if (!ok) return;
-  startRepDetection();
+  startPoseBootstrap();
 }
 
 function pauseTraining() {
   clearInterval(repInterval);
+  poseState.ready = false;
   document.getElementById("training-feedback").innerHTML =
     "<p class='title'>Pausiert</p><p class='muted'>Bleib in Bewegung</p>";
   setAIStatus("Tracking pausiert");
@@ -251,12 +444,16 @@ function saveSet(auto = false) {
       "<p class='title'>Noch nichts erkannt</p><p class='muted'>Starte Bewegung</p>";
     return;
   }
+  const romLabel =
+    motionTracker.lastROM === "unvollständig" ? "teilweise" : motionTracker.lastROM || (repCount > 10 ? "voll" : "teilweise");
+  const qualityScore =
+    motionTracker.lastQuality > 0 ? Math.min(98, Math.max(60, motionTracker.lastQuality)) : Math.min(98, 70 + Math.round(Math.random() * 25));
   const set = {
     exercise: document.getElementById("exercise-select").value,
     reps: repCount,
-    tempo: tempoLabel,
-    rom: repCount > 10 ? "voll" : "teilweise",
-    quality: Math.min(98, 70 + Math.round(Math.random() * 25)),
+    tempo: motionTracker.lastTempo || tempoLabel,
+    rom: romLabel,
+    quality: qualityScore,
     timestamp: new Date().toISOString(),
     auto
   };
@@ -401,6 +598,14 @@ document.getElementById("food-input").addEventListener("change", handleFoodInput
 document.getElementById("portion-slider").addEventListener("input", renderFoodDetection);
 document.getElementById("save-food").addEventListener("click", saveFoodEntry);
 document.getElementById("plan-form").addEventListener("submit", generatePlan);
+document.getElementById("camera-facing").addEventListener("change", async (e) => {
+  activeFacingMode = e.target.value;
+  if (cameraStream) {
+    const ok = await startCamera(activeFacingMode);
+    if (ok) startPoseBootstrap();
+  }
+});
+document.getElementById("play-replay").addEventListener("click", playReplay);
 
 hydrateProfile();
 bindProfile();
@@ -408,6 +613,7 @@ renderPlan();
 renderSets();
 renderFoodLog();
 renderDashboard();
+updateReplayLog();
 
 window.addEventListener("beforeunload", () => {
   if (!cameraStream) return;
