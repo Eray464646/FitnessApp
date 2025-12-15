@@ -9,7 +9,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 
 ### Kernfunktionen (Erlebnis)
 1) **KI-Bewegungserkennung**  
-   - Kamera erkennt Übung, Wiederholungen, ROM/Tempo/Haltung.  
+   - Kamera erkennt Übung, Wiederholungen, Range of Motion (ROM)/Tempo/Haltung.  
    - Live-Feedback (Status-Indicator, Text-Hinweise, Vibration).  
    - Fehler werden markiert und ins Protokoll übernommen.
 2) **Automatisches Trainingstracking**  
@@ -52,7 +52,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 - `User`: Basisdaten, Ziele, Level, Präferenzen, Geräte.  
 - `TrainingSession`: start/end, erkannte Übung(en), `Set[]`, Technik-Score, Pausen.  
 - `Set`: Übung, Wiederholungen, Gewicht (optional), Tempo, ROM, Fehler.  
-- `Exercise`: Name, Typ (Körpergewicht/Gewicht/Gerät), Bewegungsmuster, Empf. Tempo/ROM.  
+- `Exercise`: Name, Typ (Körpergewicht/Gewicht/Gerät), Bewegungsmuster, Empfohlenes Tempo/Range of Motion (ROM).  
 - `Plan`: Wochenstruktur, Ziel, Frequenz, Alternativübungen.  
 - `FoodEntry`: Bild-Referenz, Zutaten, Portion, Kalorien, Makros, Korrekturen.  
 - `Recommendation`: Ernährung (Protein/Kalorien), Training (Load/Deload), Regeneration.
@@ -75,7 +75,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 ### KI/ML-Pipeline (high-level)
 1. **Pose Detection** (on-device) → Keypoints.  
 2. **Rep & Tempo Detection** → Wiederholungen/Sätze, ROM/Tempo/Explosivität.  
-3. **Form Assessment** → Fehlerklassen (Knievalgus, Rundrücken, Tiefe, Balance).  
+3. **Form Assessment** → Fehlerklassen (Knie-Valgus-Stellung, Rundrücken, Tiefe, Balance).  
 4. **Scoring** → Technik-Score pro Satz, Confidence.  
 5. **Training Plan Adapter** → Load-Anpassung, Übungsalternativen.  
 6. **Food Vision** → Zutaten + Portion → Kalorien/Makros → Tagebuch.  
@@ -93,4 +93,3 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 ### Deliverables/MVP-Umfang
 - Mobile-First PWA-Shell mit: Dashboard, Live-Training-Flow (Mock KI), Food-Scan-Flow (Mock), Plan-Setup, Tagebuch-/Verlaufsansicht.  
 - Schnittstellen definiert für spätere echte KI-Modelle und Wearable-Anbindung.
-
