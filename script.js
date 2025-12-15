@@ -475,9 +475,6 @@ function saveSet(auto = false) {
 async function detectFoodWithAI(imageDataUrl) {
   setAIStatus("Analysiere Bild...", "info");
   
-  // Extract base64 data from data URL
-  const base64Data = imageDataUrl.split(',')[1];
-  
   try {
     // Call OpenAI Vision API
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -685,13 +682,19 @@ function generatePlan(evt) {
     if (goal === "fatloss") {
       focus = idx % 2 === 0 ? "Ganzkörper" : "HIIT/Metcon";
     } else if (goal === "performance") {
-      focus = idx % 3 === 0 ? "Kraft" : idx % 3 === 1 ? "Explosiv" : "Technik";
+      const focusTypes = ["Kraft", "Explosiv", "Technik"];
+      focus = focusTypes[idx % 3];
     } else {
       focus = idx % 2 === 0 ? "Ganzkörper" : "Kraft/Core";
     }
     
     // Adjust number of exercises based on level
-    const exerciseCount = level === "fortgeschritten" ? 5 : level === "mittel" ? 4 : 3;
+    const exerciseCounts = {
+      "anfänger": 3,
+      "mittel": 4,
+      "fortgeschritten": 5
+    };
+    const exerciseCount = exerciseCounts[level] || 3;
     const exercises = baseExercises.slice(0, Math.min(exerciseCount, baseExercises.length));
     
     return {
@@ -782,8 +785,9 @@ function bindProfile() {
       setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
       return;
     }
-    if (!apiKey.startsWith('sk-')) {
-      setAIStatus("Ungültiger API-Schlüssel", "warn");
+    // Validate OpenAI API key format: starts with 'sk-' and has reasonable length
+    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+      setAIStatus("Ungültiger API-Schlüssel Format", "warn");
       setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
       return;
     }
