@@ -58,12 +58,12 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 - `Recommendation`: Ernährung (Protein/Kalorien), Training (Load/Deload), Regeneration.
 
 ### Technische Architektur (Kurzfassung)
-- **Frontend**: PWA, Mobile-First UI. Stack: React/Next oder Vue/Nuxt. Service Worker für Offline-Caches, Web Share, Camera API (getUserMedia), Vibration API für Feedback.  
+- **Frontend**: PWA, Mobile-First UI. Stack: React/Next (Default wegen breiter Lib-/Hiring-Basis) oder Vue/Nuxt bei vorhandener Team-Expertise. Service Worker für Offline-Caches, Web Share, Camera API (getUserMedia), Vibration API für Feedback.  
 - **On-Device KI**: WebAssembly/WebGPU-Modelle (Pose/Rep/ROM), Fallback auf Server-Inferenz bei schwachen Geräten.  
 - **Backend/Services**:  
   - Auth + Profile + Plans  
   - Training Tracking & Scoring  
-  - Food Vision API (Custom/Cloud Vision) + Portion Estimation  
+  - Food Vision API (präferiert Custom/On-Device, Cloud Vision als Fallback bei schwachen Geräten oder für kalibrierte Kaltstarts) + Portion Estimation  
   - Recommendation Engine (Rules + ML)  
   - Analytics/Events (privacy-preserving)  
 - **Integrationen**: Wearables über OAuth/Health APIs; Push Notifications (Web Push).  
