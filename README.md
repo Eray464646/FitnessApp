@@ -75,7 +75,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 ### KI/ML-Pipeline (high-level)
 1. **Pose Detection** (on-device) → Keypoints.  
 2. **Rep & Tempo Detection** → Wiederholungen/Sätze, ROM/Tempo/Explosivität.  
-3. **Form Assessment** → Fehlerklassen (Knie nach innen/Valgusfehlstellung, Rundrücken, Tiefe, Balance).  
+3. **Form Assessment** → Fehlerklassen (Knie nach innen/Valgus-Fehlstellung, Rundrücken, Tiefe, Balance).  
 4. **Scoring** → Technik-Score pro Satz, Confidence.  
 5. **Training Plan Adapter** → Load-Anpassung, Übungsalternativen.  
 6. **Food Vision** → Zutaten + Portion → Kalorien/Makros → Tagebuch.  
