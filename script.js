@@ -1,6 +1,10 @@
 const STORAGE_KEY = "fitnessAppState";
 
 const defaultPlan = () => ({
+  age: 28,
+  gender: "divers",
+  height: 178,
+  weight: 75,
   goal: "aufbau",
   level: "anfänger",
   frequency: 3,
@@ -468,14 +472,109 @@ function saveSet(auto = false) {
   renderDashboard();
 }
 
-function detectFoodMock() {
-  const samples = [
-    { label: "Chicken Bowl", calories: 520, protein: 45, carbs: 52, fat: 14 },
-    { label: "Haferflocken mit Beeren", calories: 380, protein: 18, carbs: 62, fat: 8 },
-    { label: "Protein Pasta", calories: 610, protein: 42, carbs: 68, fat: 12 },
-    { label: "Quark & Banane", calories: 280, protein: 28, carbs: 32, fat: 4 }
-  ];
-  return samples[Math.floor(Math.random() * samples.length)];
+async function detectFoodWithAI(imageDataUrl) {
+  setAIStatus("Analysiere Bild...", "info");
+  
+  try {
+    // Call OpenAI Vision API
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getOpenAIKey()}`
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: "Analysiere dieses Bild und identifiziere alle Lebensmittel. Gib die Antwort als JSON zurück mit folgendem Format: {\"detected\": true/false, \"items\": [\"item1\", \"item2\"], \"label\": \"Hauptgericht Name\", \"confidence\": 0-100, \"calories\": Zahl, \"protein\": Zahl, \"carbs\": Zahl, \"fat\": Zahl, \"reasoning\": \"kurze Erklärung\"}. Wenn kein Essen erkennbar ist, setze detected auf false. Schätze realistische Nährwerte für eine typische Portion."
+              },
+              {
+                type: "image_url",
+                image_url: {
+                  url: imageDataUrl
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 500
+      })
+    });
+
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices[0].message.content;
+    
+    // Try to extract JSON from the response
+    let result;
+    try {
+      // Try to parse as direct JSON
+      result = JSON.parse(content);
+    } catch {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[1]);
+      } else {
+        // Try to find JSON object in the text
+        const objectMatch = content.match(/\{[\s\S]*\}/);
+        if (objectMatch) {
+          result = JSON.parse(objectMatch[0]);
+        } else {
+          throw new Error('Could not parse response');
+        }
+      }
+    }
+
+    if (!result.detected) {
+      setAIStatus("Kein Essen erkannt", "warn");
+      return null;
+    }
+
+    setAIStatus("Analyse abgeschlossen", "info");
+    
+    return {
+      label: result.label,
+      calories: Math.round(result.calories),
+      protein: Math.round(result.protein),
+      carbs: Math.round(result.carbs),
+      fat: Math.round(result.fat),
+      confidence: result.confidence,
+      items: result.items,
+      reasoning: result.reasoning
+    };
+    
+  } catch (error) {
+    console.error('Food detection error:', error);
+    setAIStatus("Fehler bei der Analyse", "warn");
+    
+    // Show error to user
+    document.getElementById("food-details").innerHTML = `
+      <p class='muted' style='color: #b91c1c;'>
+        Fehler bei der Bilderkennung: ${escapeHTML(error.message)}<br/>
+        <span class='small'>Bitte überprüfe die API-Konfiguration oder versuche es später erneut.</span>
+      </p>
+    `;
+    
+    return null;
+  }
+}
+
+function getOpenAIKey() {
+  // Get API key from localStorage (user sets it in profile)
+  const storedKey = localStorage.getItem('openai_api_key');
+  if (storedKey) return storedKey;
+  
+  // If no key is stored, throw error - user must configure it in profile
+  throw new Error('Kein OpenAI API-Schlüssel konfiguriert. Bitte gehe zu Profil → KI-Einstellungen.');
 }
 
 function renderFoodDetection() {
@@ -490,24 +589,52 @@ function renderFoodDetection() {
     carbs: Math.round(lastFoodDetection.carbs * portion),
     fat: Math.round(lastFoodDetection.fat * portion)
   };
-  document.getElementById("food-details").innerHTML = `
-    <strong>${escapeHTML(lastFoodDetection.label)}</strong><br/>
-    <span class="muted small">Kalorien ${scaled.calories} · Protein ${scaled.protein} g · KH ${scaled.carbs} g · Fett ${scaled.fat} g</span>
-  `;
+  
+  // Build detailed info including AI confidence and detected items
+  let detailsHTML = `<strong>${escapeHTML(lastFoodDetection.label)}</strong><br/>`;
+  
+  if (lastFoodDetection.confidence !== undefined) {
+    detailsHTML += `<span class="muted small">KI-Sicherheit: ${lastFoodDetection.confidence}%</span><br/>`;
+  }
+  
+  if (lastFoodDetection.items && lastFoodDetection.items.length > 0) {
+    detailsHTML += `<span class="muted small">Erkannt: ${lastFoodDetection.items.map(escapeHTML).join(', ')}</span><br/>`;
+  }
+  
+  detailsHTML += `<span class="muted small">Kalorien ${scaled.calories} · Protein ${scaled.protein} g · KH ${scaled.carbs} g · Fett ${scaled.fat} g</span>`;
+  
+  if (lastFoodDetection.reasoning) {
+    detailsHTML += `<br/><span class="muted small" style="font-style: italic;">${escapeHTML(lastFoodDetection.reasoning)}</span>`;
+  }
+  
+  document.getElementById("food-details").innerHTML = detailsHTML;
   return scaled;
 }
 
-function handleFoodInput(event) {
+async function handleFoodInput(event) {
   const file = event.target.files?.[0];
   if (!file) return;
+  
   const reader = new FileReader();
-  reader.onload = (e) => {
+  reader.onload = async (e) => {
     const preview = document.getElementById("food-preview");
     preview.src = e.target.result;
+    
+    // Show loading state
+    document.getElementById("food-details").innerHTML = "<p class='muted'>🔍 KI analysiert das Bild...</p>";
+    setAIStatus("Bild wird analysiert...", "info");
+    
+    // Call AI vision API
+    lastFoodDetection = await detectFoodWithAI(e.target.result);
+    
+    if (lastFoodDetection) {
+      renderFoodDetection();
+    } else {
+      document.getElementById("food-details").innerHTML = "<p class='muted' style='color: #b91c1c;'>Kein Essen im Bild erkannt. Bitte versuche es mit einem anderen Foto.</p>";
+      setAIStatus("Kein Essen erkannt", "warn");
+    }
   };
   reader.readAsDataURL(file);
-  lastFoodDetection = detectFoodMock();
-  renderFoodDetection();
 }
 
 function saveFoodEntry() {
@@ -529,10 +656,18 @@ function saveFoodEntry() {
 
 function generatePlan(evt) {
   evt?.preventDefault();
+  
+  // Read all form values
+  const age = Number(document.getElementById("age").value);
+  const gender = document.getElementById("gender").value;
+  const height = Number(document.getElementById("height").value);
+  const weight = Number(document.getElementById("weight").value);
   const equipment = document.getElementById("equipment").value;
   const frequency = Number(document.getElementById("frequency").value) || 3;
   const goal = document.getElementById("goal").value;
   const level = document.getElementById("level").value;
+  
+  // Determine exercises based on equipment
   const baseExercises =
     equipment === "studio"
       ? ["Kniebeugen", "Bankdrücken", "Kreuzheben", "Klimmzüge", "Rudern Kabel", "Plank"]
@@ -540,9 +675,28 @@ function generatePlan(evt) {
         ? ["Goblet Squat", "Kurzhantel-Bankdrücken", "Einarm-Rudern", "Rumänisches Kreuzheben", "Plank"]
         : ["Kniebeugen", "Liegestütze", "Hip Thrust", "Rows mit Band", "Split Squats", "Plank"];
 
+  // Generate days based on frequency
   const days = Array.from({ length: Math.max(2, Math.min(6, frequency)) }).map((_, idx) => {
-    const focus = idx % 2 === 0 ? "Ganzkörper" : goal === "fatloss" ? "HIIT/Metcon" : "Kraft/Core";
-    const exercises = baseExercises.slice(0, 4 + (level === "fortgeschritten" ? 1 : 0));
+    // Vary focus based on goal and day pattern
+    let focus;
+    if (goal === "fatloss") {
+      focus = idx % 2 === 0 ? "Ganzkörper" : "HIIT/Metcon";
+    } else if (goal === "performance") {
+      const focusTypes = ["Kraft", "Explosiv", "Technik"];
+      focus = focusTypes[idx % 3];
+    } else {
+      focus = idx % 2 === 0 ? "Ganzkörper" : "Kraft/Core";
+    }
+    
+    // Adjust number of exercises based on level
+    const exerciseCounts = {
+      "anfänger": 3,
+      "mittel": 4,
+      "fortgeschritten": 5
+    };
+    const exerciseCount = exerciseCounts[level] || 3;
+    const exercises = baseExercises.slice(0, Math.min(exerciseCount, baseExercises.length));
+    
     return {
       day: ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"][idx] || `Tag ${idx + 1}`,
       focus,
@@ -550,10 +704,26 @@ function generatePlan(evt) {
     };
   });
 
-  state.plan = { equipment, frequency, goal, level, days };
+  // Save all form values to plan state
+  state.plan = { 
+    age, 
+    gender, 
+    height, 
+    weight, 
+    equipment, 
+    frequency, 
+    goal, 
+    level, 
+    days 
+  };
+  
   persist();
   renderPlan();
   renderDashboard();
+  
+  // Show success feedback
+  setAIStatus("Plan aktualisiert", "info");
+  setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
 }
 
 function renderPlan() {
@@ -570,10 +740,28 @@ function renderPlan() {
   document.getElementById("plan-summary").textContent = `${state.plan.frequency || 3}x/Woche · ${state.plan.equipment}`;
 }
 
+function hydratePlanForm() {
+  // Load saved plan values into the form
+  if (state.plan.age) document.getElementById("age").value = state.plan.age;
+  if (state.plan.gender) document.getElementById("gender").value = state.plan.gender;
+  if (state.plan.height) document.getElementById("height").value = state.plan.height;
+  if (state.plan.weight) document.getElementById("weight").value = state.plan.weight;
+  if (state.plan.level) document.getElementById("level").value = state.plan.level;
+  if (state.plan.goal) document.getElementById("goal").value = state.plan.goal;
+  if (state.plan.frequency) document.getElementById("frequency").value = state.plan.frequency;
+  if (state.plan.equipment) document.getElementById("equipment").value = state.plan.equipment;
+}
+
 function hydrateProfile() {
   document.getElementById("camera-consent").checked = !!state.profile.cameraConsent;
   document.getElementById("notification-toggle").checked = state.profile.notifications ?? true;
   document.getElementById("wearable-toggle").checked = !!state.profile.wearable;
+  
+  // Load API key (masked display)
+  const apiKey = localStorage.getItem('openai_api_key');
+  if (apiKey) {
+    document.getElementById("openai-api-key").value = apiKey;
+  }
 }
 
 function bindProfile() {
@@ -588,6 +776,24 @@ function bindProfile() {
   document.getElementById("wearable-toggle").addEventListener("change", (e) => {
     state.profile.wearable = e.target.checked;
     persist();
+  });
+  
+  document.getElementById("save-api-key").addEventListener("click", () => {
+    const apiKey = document.getElementById("openai-api-key").value.trim();
+    if (!apiKey) {
+      setAIStatus("Bitte API-Schlüssel eingeben", "warn");
+      setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
+      return;
+    }
+    // Validate OpenAI API key format: starts with 'sk-' and has reasonable length
+    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
+      setAIStatus("Ungültiger API-Schlüssel Format", "warn");
+      setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
+      return;
+    }
+    localStorage.setItem('openai_api_key', apiKey);
+    setAIStatus("API-Schlüssel gespeichert", "info");
+    setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
   });
 }
 
@@ -609,6 +815,7 @@ document.getElementById("play-replay").addEventListener("click", playReplay);
 
 hydrateProfile();
 bindProfile();
+hydratePlanForm();
 renderPlan();
 renderSets();
 renderFoodLog();

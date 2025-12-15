@@ -281,6 +281,21 @@
               Consent kann jederzeit geändert werden. Rohvideos werden nicht gespeichert – nur Keypoints oder Snapshots nach Zustimmung.
             </p>
           </div>
+          
+          <div class="card form-card">
+            <div class="block-header">
+              <h3>KI-Einstellungen</h3>
+              <span class="muted">Food Scanner Konfiguration</span>
+            </div>
+            <label>
+              OpenAI API-Schlüssel
+              <input type="password" id="openai-api-key" placeholder="sk-..." />
+            </label>
+            <p class="muted small">
+              Der API-Schlüssel wird lokal im Browser gespeichert und nur für die Bilderkennung verwendet. Erstelle einen Schlüssel unter <a href="https://platform.openai.com/api-keys" target="_blank" style="color: #3730a3;">platform.openai.com</a>.
+            </p>
+            <button class="btn primary" id="save-api-key">Schlüssel speichern</button>
+          </div>
         </section>
       </main>
 
