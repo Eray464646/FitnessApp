@@ -59,20 +59,22 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 
 ### Technische Architektur (Kurzfassung)
 - **Frontend**: PWA, Mobile-First UI.  
-  - Stack: React/Next (Default wegen breiter Lib-/Hiring-Basis) oder Vue/Nuxt bei vorhandener Team-Expertise.  
+  - Technologie-Stack: React/Next (Standard wegen breiter Lib-/Hiring-Basis) oder Vue/Nuxt bei vorhandener Team-Expertise.  
   - Plattform-APIs: Service Worker für Offline-Caches, Web Share, Camera API (getUserMedia), Vibration API für Feedback.  
 - **On-Device KI**: WebAssembly/WebGPU-Modelle (Pose/Rep/ROM), Fallback auf Server-Inferenz bei schwachen Geräten.  
 - **Backend/Services**:  
   - Auth + Profile + Plans  
   - Training Tracking & Scoring  
-  - Food Vision API (präferiert Custom/On-Device, Cloud Vision als Fallback bei schwachen Geräten oder für kalibrierte Kaltstarts) + Portion Estimation  
+  - Food Vision API: präferiert Custom/On-Device.  
+  - Cloud Vision als Fallback bei schwachen Geräten oder für kalibrierte Kaltstarts.  
+  - Portionsschätzung (Portion Estimation).  
   - Recommendation Engine (Rules + ML)  
   - Analytics/Events (privacy-preserving)  
 - **Integrationen**: Wearables über OAuth/Health APIs; Push Notifications (Web Push).  
 - **Speicherung**:  
   - Lokal: IndexedDB für Offline-Sessions/Tagebuch-Entwürfe.  
   - Server: Postgres (strukturierte Daten), Object Storage (Bilder/Clips), Feature Store für KI.  
-- **Sicherheit**: TLS, minimale Datenspeicherung, Einwilligung pro Kamera-Use-Case, Role-based Access, DSGVO-konforme Datenlöschung.
+- **Sicherheit**: TLS, minimale Datenspeicherung, Einwilligung pro Kamera-Use-Case, rollenbasierte Zugriffskontrolle, DSGVO-konforme Datenlöschung.
 
 ### KI/ML-Pipeline (high-level)
 1. **Pose Detection** (on-device) → Keypoints.  
