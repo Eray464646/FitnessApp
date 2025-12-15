@@ -3,7 +3,7 @@
 Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automatisch erkennt, bewertet und optimiert – ohne manuellen Tracking-Aufwand.
 
 ### Zielgruppe & Prinzipien
-- **Fitness-Einsteiger und Freizeit-Sportler** mit wenig Zeit, Wunsch nach Automatisierung.
+- **Fitness-Einsteiger und Freizeitsportler** mit wenig Zeit, Wunsch nach Automatisierung.
 - **Mobile First**: Touch-optimiert, klare Sprache ohne Fachjargon, reduziertes UI, schnelle Ladezeiten (lazy loading, komprimierte Assets, Skeleton States).
 - **Privacy by Design**: Kamera-Streams nur mit Zustimmung, lokale Vorverarbeitung, minimal notwendige Datenspeicherung.
 
@@ -75,7 +75,7 @@ Konzept und Struktur einer mobilen Web-App, die Training und Ernährung automati
 ### KI/ML-Pipeline (high-level)
 1. **Pose Detection** (on-device) → Keypoints.  
 2. **Rep & Tempo Detection** → Wiederholungen/Sätze, ROM/Tempo/Explosivität.  
-3. **Form Assessment** → Fehlerklassen (Knie nach innen/Valgus-Fehlstellung, Rundrücken, Tiefe, Balance).  
+3. **Form Assessment** → Fehlerklassen (Knie nach innen/Valgusfehlstellung, Rundrücken, Tiefe, Balance).  
 4. **Scoring** → Technik-Score pro Satz, Confidence.  
 5. **Training Plan Adapter** → Load-Anpassung, Übungsalternativen.  
 6. **Food Vision** → Zutaten + Portion → Kalorien/Makros → Tagebuch.  
