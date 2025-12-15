@@ -130,12 +130,13 @@ function simulateSkeletonFrame() {
   const tempoOptions = ["kontrolliert", "explosiv", "langsam"];
   const tempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
   
-  // Simulate keypoints for replay visualization
-  const keypoints = Array.from({ length: keypointsTracked }, (_, idx) => ({
+  // Simulate keypoints for replay visualization - ensure at least 17 for skeleton connections
+  const keypointCount = Math.max(17, keypointsTracked);
+  const keypoints = Array.from({ length: keypointCount }, (_, idx) => ({
     id: idx,
     x: 0.3 + Math.random() * 0.4,  // Normalized 0-1
     y: 0.2 + Math.random() * 0.6,
-    confidence: confidence
+    confidence: confidence + (Math.random() - 0.5) * 0.2  // Vary confidence per keypoint
   }));
   
   return {
@@ -342,7 +343,7 @@ function renderSkeletonViz(keypoints) {
       const y1 = keypoints[a].y * height;
       const x2 = keypoints[b].x * width;
       const y2 = keypoints[b].y * height;
-      const opacity = Math.min(keypoints[a].confidence, keypoints[b].confidence);
+      const opacity = Math.min(1, Math.max(0, Math.min(keypoints[a].confidence, keypoints[b].confidence)));
       svg += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="#6366f1" stroke-width="2" opacity="${opacity}" />`;
     }
   });
@@ -351,8 +352,9 @@ function renderSkeletonViz(keypoints) {
   keypoints.forEach(kp => {
     const x = kp.x * width;
     const y = kp.y * height;
-    const radius = 3 + kp.confidence * 2;
-    svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="#22d3ee" opacity="${kp.confidence}" />`;
+    const confidence = Math.min(1, Math.max(0, kp.confidence));
+    const radius = 3 + confidence * 2;
+    svg += `<circle cx="${x}" cy="${y}" r="${radius}" fill="#22d3ee" opacity="${confidence}" />`;
   });
   
   svg += '</svg>';
