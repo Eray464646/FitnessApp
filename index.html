@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FitSense AI | Mobile Fitness</title>
+    <link rel="stylesheet" href="styles.css" />
+    <script defer src="script.js"></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="top-bar">
+        <div class="brand">
+          <span class="dot"></span>
+          FitSense AI
+        </div>
+        <div class="status-pill" id="ai-status">KI bereit</div>
+      </header>
+
+      <main>
+        <section id="dashboard" class="view active">
+          <div class="hero-card">
+            <div>
+              <p class="eyebrow">Dein Tag</p>
+              <h1>Starte Training oder scanne deine Mahlzeit</h1>
+              <p class="subtext">
+                Mobile First, klare Sprache, KI-unterstützt – ohne manuelles Tracking.
+              </p>
+              <div class="quick-actions">
+                <button class="btn primary" data-nav-target="training">Training scannen</button>
+                <button class="btn ghost" data-nav-target="nutrition">Mahlzeit scannen</button>
+              </div>
+            </div>
+            <div class="hero-score">
+              <p class="eyebrow">Streak</p>
+              <div id="streak-score" class="big-number">0</div>
+              <p class="muted">Tage aktiv</p>
+            </div>
+          </div>
+
+          <div class="card-grid">
+            <article class="card">
+              <div class="card-title">Training</div>
+              <div class="card-value">
+                <span id="today-reps">0</span> Wiederholungen
+              </div>
+              <p class="muted" id="tech-score">Technik-Score: 0%</p>
+            </article>
+            <article class="card">
+              <div class="card-title">Ernährung</div>
+              <div class="card-value">
+                <span id="today-calories">0</span> kcal
+              </div>
+              <p class="muted" id="today-protein">Protein: 0 g</p>
+            </article>
+            <article class="card">
+              <div class="card-title">Regeneration</div>
+              <div class="card-value" id="recovery-hint">Bereit für eine Session</div>
+              <p class="muted">Erkenne Form & Pausen automatisch</p>
+            </article>
+          </div>
+
+          <section class="list-block">
+            <div class="block-header">
+              <h2>Nächste Session</h2>
+              <button class="tiny-btn" data-nav-target="plan">Plan prüfen</button>
+            </div>
+            <div id="next-session" class="pill-list"></div>
+          </section>
+
+          <section class="list-block">
+            <div class="block-header">
+              <h2>Letzte Aktivitäten</h2>
+              <button class="tiny-btn" data-nav-target="training">Details</button>
+            </div>
+            <div id="recent-activity" class="activity-list"></div>
+          </section>
+        </section>
+
+        <section id="training" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">KI-Bewegungserkennung</p>
+              <h2>Live-Training mit Kamera</h2>
+              <p class="muted">
+                KI erkennt Übung, Wiederholungen und Tempo. Feedback bleibt unten sticky.
+              </p>
+            </div>
+            <label class="chip">
+              Übung
+              <select id="exercise-select">
+                <option value="Kniebeugen">Kniebeugen</option>
+                <option value="Liegestütze">Liegestütze</option>
+                <option value="Kreuzheben (leichte KH)">Kreuzheben (leichte KH)</option>
+                <option value="Rows mit Band">Rows mit Band</option>
+              </select>
+            </label>
+          </header>
+
+          <div class="camera-panel">
+            <video id="camera-feed" playsinline muted></video>
+            <div class="camera-overlay">
+              <div class="badge" id="camera-status">Kamera inaktiv</div>
+              <div class="feedback" id="training-feedback">
+                <p class="title">Starte das Tracking</p>
+                <p class="muted">KI überwacht Haltung & Bewegungsradius</p>
+              </div>
+              <div class="rep-counter">
+                <p class="eyebrow">Wiederholungen</p>
+                <div id="rep-count" class="big-number">0</div>
+                <p id="tempo-info" class="muted">Tempo: —</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="controls">
+            <button class="btn primary" id="start-training">KI-Tracking starten</button>
+            <button class="btn ghost" id="pause-training">Pause</button>
+            <button class="btn secondary" id="save-set">Satz speichern</button>
+          </div>
+
+          <div class="card log-card">
+            <div class="block-header">
+              <h3>Sätze & Technik</h3>
+              <span class="muted">Automatisch erfasst</span>
+            </div>
+            <div id="sets-list" class="stack"></div>
+          </div>
+        </section>
+
+        <section id="nutrition" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Food Scan</p>
+              <h2>Mahlzeit scannen & Makros</h2>
+              <p class="muted">
+                Foto aufnehmen oder hochladen. KI erkennt Zutaten, Portion und Makros. Du kannst korrigieren.
+              </p>
+            </div>
+            <label class="chip">
+              Portion
+              <input type="range" id="portion-slider" min="0.5" max="2" step="0.1" value="1" />
+            </label>
+          </header>
+
+          <div class="upload-card">
+            <label class="upload-area">
+              <input type="file" id="food-input" accept="image/*" capture="environment" />
+              <div>
+                <p class="title">Mahlzeit fotografieren</p>
+                <p class="muted">Automatische Analyse der Lebensmittel</p>
+              </div>
+            </label>
+            <div class="preview">
+              <img id="food-preview" alt="Food Preview" />
+              <div id="food-details"></div>
+            </div>
+            <button class="btn primary" id="save-food">Zum Tagebuch hinzufügen</button>
+          </div>
+
+          <div class="card log-card">
+            <div class="block-header">
+              <h3>Tagebuch</h3>
+              <span class="muted">Kalorien & Makros</span>
+            </div>
+            <div id="food-log" class="stack"></div>
+          </div>
+        </section>
+
+        <section id="plan" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Planer</p>
+              <h2>Automatisch generierter Trainingsplan</h2>
+              <p class="muted">
+                KI berücksichtigt Ziel, Level, Frequenz und Equipment. Anpassungen jederzeit möglich.
+              </p>
+            </div>
+          </header>
+
+          <form id="plan-form" class="card form-card">
+            <div class="form-grid">
+              <label>
+                Alter
+                <input type="number" id="age" min="16" max="90" value="28" />
+              </label>
+              <label>
+                Geschlecht
+                <select id="gender">
+                  <option value="divers">Divers</option>
+                  <option value="weiblich">Weiblich</option>
+                  <option value="männlich">Männlich</option>
+                </select>
+              </label>
+              <label>
+                Größe (cm)
+                <input type="number" id="height" min="140" max="210" value="178" />
+              </label>
+              <label>
+                Gewicht (kg)
+                <input type="number" id="weight" min="45" max="160" value="75" />
+              </label>
+              <label>
+                Level
+                <select id="level">
+                  <option value="anfänger">Anfänger</option>
+                  <option value="mittel">Mittel</option>
+                  <option value="fortgeschritten">Fortgeschritten</option>
+                </select>
+              </label>
+              <label>
+                Ziel
+                <select id="goal">
+                  <option value="aufbau">Muskelaufbau</option>
+                  <option value="fatloss">Fettabbau</option>
+                  <option value="performance">Performance</option>
+                </select>
+              </label>
+              <label>
+                Häufigkeit (pro Woche)
+                <input type="number" id="frequency" min="2" max="6" value="3" />
+              </label>
+              <label>
+                Verfügbare Geräte
+                <select id="equipment">
+                  <option value="körpergewicht">Körpergewicht</option>
+                  <option value="kurzhanteln">Kurzhanteln</option>
+                  <option value="studio">Studio (volle Ausstattung)</option>
+                </select>
+              </label>
+            </div>
+            <button class="btn primary full" type="submit">Plan aktualisieren</button>
+          </form>
+
+          <div class="card log-card">
+            <div class="block-header">
+              <h3>Wöchentlicher Plan</h3>
+              <span class="muted" id="plan-summary">Aktualisiert</span>
+            </div>
+            <div id="plan-days" class="stack"></div>
+          </div>
+        </section>
+
+        <section id="profile" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Datenschutz & Geräte</p>
+              <h2>Profil & Einstellungen</h2>
+              <p class="muted">Kamera-Opt-in, Einheiten, Wearables.</p>
+            </div>
+          </header>
+          <div class="card form-card">
+            <label class="toggle">
+              <span>Kamera für Training erlauben</span>
+              <input type="checkbox" id="camera-consent" />
+            </label>
+            <label class="toggle">
+              <span>Push-Hinweise & Vibration</span>
+              <input type="checkbox" id="notification-toggle" checked />
+            </label>
+            <label class="toggle">
+              <span>Wearable verbunden</span>
+              <input type="checkbox" id="wearable-toggle" />
+            </label>
+            <p class="muted small">
+              Consent kann jederzeit geändert werden. Rohvideos werden nicht gespeichert – nur Keypoints oder Snapshots nach Zustimmung.
+            </p>
+          </div>
+        </section>
+      </main>
+
+      <nav class="bottom-nav">
+        <button class="nav-btn active" data-target="dashboard">Dashboard</button>
+        <button class="nav-btn" data-target="training">Training</button>
+        <button class="nav-btn" data-target="nutrition">Ernährung</button>
+        <button class="nav-btn" data-target="plan">Plan</button>
+        <button class="nav-btn" data-target="profile">Profil</button>
+      </nav>
+    </div>
+  </body>
+</html>
