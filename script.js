@@ -102,9 +102,8 @@ let currentFacingMode = "environment";
 let skeletonCanvas;
 let skeletonCtx;
 
-// MediaPipe Pose instance and camera
+// MediaPipe Pose instance
 let mediaPipePose = null;
-let mediaPipeCamera = null;
 let lastPoseResults = null;
 let poseDetectionActive = false;
 
@@ -700,23 +699,36 @@ function startPoseBootstrap() {
   // Start pose detection
   poseDetectionActive = true;
   
-  // Set up camera for MediaPipe
+  // Set up video element for MediaPipe processing
   const videoElement = document.getElementById("camera-feed");
   
-  if (!mediaPipeCamera) {
-    mediaPipeCamera = new Camera(videoElement, {
-      onFrame: async () => {
-        if (poseDetectionActive && mediaPipePose) {
-          await mediaPipePose.send({image: videoElement});
-        }
-      },
-      width: 640,
-      height: 480
-    });
-  }
+  // Process frames using requestAnimationFrame for better performance
+  const processFrame = async () => {
+    if (!poseDetectionActive || !mediaPipePose) {
+      return;
+    }
+    
+    // Don't process if paused - maintain pause state
+    if (poseState.trainingState === TrainingState.PAUSED) {
+      requestAnimationFrame(processFrame);
+      return;
+    }
+    
+    // Send frame to MediaPipe if video is ready
+    if (videoElement.readyState === videoElement.HAVE_ENOUGH_DATA) {
+      try {
+        await mediaPipePose.send({image: videoElement});
+      } catch (error) {
+        console.error('MediaPipe processing error:', error);
+      }
+    }
+    
+    // Continue processing frames
+    requestAnimationFrame(processFrame);
+  };
   
-  // Start camera
-  mediaPipeCamera.start();
+  // Start frame processing loop
+  requestAnimationFrame(processFrame);
 }
 
 function playReplay() {
@@ -856,7 +868,7 @@ function renderSets() {
       (set, idx) => {
         const actualIdx = state.sets.length - 1 - idx;
         return `
-        <div class="log-item">
+        <div class="log-item swipeable" data-set-index="${actualIdx}" style="position: relative;">
           <strong>${escapeHTML(set.exercise)}</strong> • ${set.reps} Wdh · Technik ${set.quality}%<br/>
           <span class="muted small">${new Date(set.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} · ROM: ${escapeHTML(set.rom)} · Tempo: ${escapeHTML(set.tempo)}</span>
           <div style="margin-top: 8px; display: flex; gap: 8px;">
@@ -868,6 +880,56 @@ function renderSets() {
       }
     )
     .join("");
+  
+  // Add swipe-to-delete functionality
+  attachSwipeToDelete();
+}
+
+// Swipe-to-delete functionality for mobile
+function attachSwipeToDelete() {
+  const swipeableItems = document.querySelectorAll('.swipeable');
+  
+  swipeableItems.forEach(item => {
+    let startX = 0;
+    let currentX = 0;
+    let isSwiping = false;
+    
+    item.addEventListener('touchstart', (e) => {
+      startX = e.touches[0].clientX;
+      isSwiping = true;
+    });
+    
+    item.addEventListener('touchmove', (e) => {
+      if (!isSwiping) return;
+      
+      currentX = e.touches[0].clientX;
+      const diff = currentX - startX;
+      
+      // Only allow left swipe (negative diff)
+      if (diff < 0 && diff > -100) {
+        item.style.transform = `translateX(${diff}px)`;
+        item.style.transition = 'none';
+      }
+    });
+    
+    item.addEventListener('touchend', () => {
+      if (!isSwiping) return;
+      
+      const diff = currentX - startX;
+      
+      // If swiped more than 60px to the left, trigger delete
+      if (diff < -60) {
+        const setIndex = parseInt(item.dataset.setIndex);
+        deleteSet(setIndex);
+      }
+      
+      // Reset position
+      item.style.transform = '';
+      item.style.transition = 'transform 0.3s ease';
+      isSwiping = false;
+      currentX = 0;
+    });
+  });
 }
 
 function deleteSet(index) {
@@ -1010,11 +1072,6 @@ async function startCamera(facingMode = activeFacingMode) {
 function stopCamera() {
   // Stop pose detection
   poseDetectionActive = false;
-  
-  // Stop MediaPipe camera
-  if (mediaPipeCamera) {
-    mediaPipeCamera.stop();
-  }
   
   // Stop camera stream
   cameraStream?.getTracks().forEach((t) => t.stop());
