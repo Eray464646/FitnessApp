@@ -887,42 +887,67 @@ async function detectFoodWithAI(imageDataUrl) {
   setAIStatus("Analysiere Bild...", "info");
   
   try {
-    // Call OpenAI Vision API
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Extract base64 data and MIME type from data URL
+    const matches = imageDataUrl.match(/^data:(.+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('Ungültiges Bildformat');
+    }
+    const mimeType = matches[1] || 'image/jpeg';
+    const base64Data = matches[2];
+    
+    // Call Gemini Vision API
+    const apiKey = getGeminiKey();
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${getOpenAIKey()}`
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: "gpt-4o-mini",
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "text",
-                text: "Analysiere dieses Bild und identifiziere alle Lebensmittel. Gib die Antwort als JSON zurück mit folgendem Format: {\"detected\": true/false, \"items\": [\"item1\", \"item2\"], \"label\": \"Hauptgericht Name\", \"confidence\": 0-100, \"calories\": Zahl, \"protein\": Zahl, \"carbs\": Zahl, \"fat\": Zahl, \"reasoning\": \"kurze Erklärung\"}. Wenn kein Essen erkennbar ist, setze detected auf false. Schätze realistische Nährwerte für eine typische Portion."
-              },
-              {
-                type: "image_url",
-                image_url: {
-                  url: imageDataUrl
-                }
+        contents: [{
+          parts: [
+            {
+              text: "Analysiere dieses Bild und identifiziere alle Lebensmittel. Gib die Antwort als JSON zurück mit folgendem Format: {\"detected\": true/false, \"items\": [\"item1\", \"item2\"], \"label\": \"Hauptgericht Name\", \"confidence\": 0-100, \"calories\": Zahl, \"protein\": Zahl, \"carbs\": Zahl, \"fat\": Zahl, \"reasoning\": \"kurze Erklärung\"}. Wenn kein Essen erkennbar ist, setze detected auf false. Schätze realistische Nährwerte für eine typische Portion. Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text oder Markdown-Formatierung."
+            },
+            {
+              inline_data: {
+                mime_type: mimeType,
+                data: base64Data
               }
-            ]
-          }
-        ],
-        max_tokens: 500
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.4,
+          topK: 32,
+          topP: 1,
+          maxOutputTokens: 500
+        }
       })
     });
 
     if (!response.ok) {
-      throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      const errorData = await response.json().catch(() => ({}));
+      
+      // Handle specific error cases
+      if (response.status === 400) {
+        throw new Error('Ungültiger API-Schlüssel oder ungültige Anfrage');
+      } else if (response.status === 429) {
+        throw new Error('API-Limit erreicht. Bitte versuche es später erneut');
+      } else if (response.status === 403) {
+        throw new Error('API-Schlüssel ungültig oder keine Berechtigung');
+      } else {
+        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+      }
     }
 
     const data = await response.json();
-    const content = data.choices[0].message.content;
+    
+    // Extract text from Gemini response
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Keine gültige Antwort von der API erhalten');
+    }
+    
+    const content = data.candidates[0].content.parts[0].text;
     
     // Try to extract JSON from the response
     let result;
@@ -967,10 +992,11 @@ async function detectFoodWithAI(imageDataUrl) {
     console.error('Food detection error:', error);
     setAIStatus("Fehler bei der Analyse", "warn");
     
-    // Show error to user
+    // Show error to user (without exposing API key)
+    const errorMessage = error.message || 'Unbekannter Fehler';
     document.getElementById("food-details").innerHTML = `
       <p class='muted' style='color: #b91c1c;'>
-        Fehler bei der Bilderkennung: ${escapeHTML(error.message)}<br/>
+        Fehler bei der Bilderkennung: ${escapeHTML(errorMessage)}<br/>
         <span class='small'>Bitte überprüfe die API-Konfiguration oder versuche es später erneut.</span>
       </p>
     `;
@@ -979,13 +1005,22 @@ async function detectFoodWithAI(imageDataUrl) {
   }
 }
 
-function getOpenAIKey() {
+function getGeminiKey() {
+  // Migrate old OpenAI key to new Gemini key (one-time cleanup)
+  // Note: We don't migrate the actual key value because OpenAI and Gemini
+  // use completely different API keys. Users will need to get a new Gemini key.
+  const oldKey = localStorage.getItem('openai_api_key');
+  if (oldKey && !localStorage.getItem('gemini_api_key')) {
+    // Remove old OpenAI key as it's not compatible with Gemini
+    localStorage.removeItem('openai_api_key');
+  }
+  
   // Get API key from localStorage (user sets it in profile)
-  const storedKey = localStorage.getItem('openai_api_key');
+  const storedKey = localStorage.getItem('gemini_api_key');
   if (storedKey) return storedKey;
   
   // If no key is stored, throw error - user must configure it in profile
-  throw new Error('Kein OpenAI API-Schlüssel konfiguriert. Bitte gehe zu Profil → KI-Einstellungen.');
+  throw new Error('Kein Gemini API-Schlüssel konfiguriert. Bitte gehe zu Profil → KI-Einstellungen.');
 }
 
 function renderFoodDetection() {
@@ -1169,9 +1204,9 @@ function hydrateProfile() {
   document.getElementById("wearable-toggle").checked = !!state.profile.wearable;
   
   // Load API key (masked display)
-  const apiKey = localStorage.getItem('openai_api_key');
+  const apiKey = localStorage.getItem('gemini_api_key');
   if (apiKey) {
-    document.getElementById("openai-api-key").value = apiKey;
+    document.getElementById("gemini-api-key").value = apiKey;
   }
 }
 
@@ -1190,20 +1225,31 @@ function bindProfile() {
   });
   
   document.getElementById("save-api-key").addEventListener("click", () => {
-    const apiKey = document.getElementById("openai-api-key").value.trim();
+    const apiKey = document.getElementById("gemini-api-key").value.trim();
     if (!apiKey) {
       setAIStatus("Bitte API-Schlüssel eingeben", "warn");
       setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
       return;
     }
-    // Validate OpenAI API key format: starts with 'sk-' and has reasonable length
-    if (!apiKey.startsWith('sk-') || apiKey.length < 20) {
-      setAIStatus("Ungültiger API-Schlüssel Format", "warn");
+    // Validate Gemini API key format: starts with 'AIza' and has reasonable length
+    // Gemini API keys typically start with 'AIza' and are around 39 characters long
+    if (!apiKey.startsWith('AIza') || apiKey.length < 30) {
+      setAIStatus("Ungültiges API-Schlüssel Format", "warn");
       setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
       return;
     }
-    localStorage.setItem('openai_api_key', apiKey);
+    localStorage.setItem('gemini_api_key', apiKey);
     setAIStatus("API-Schlüssel gespeichert", "info");
+    setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
+  });
+  
+  document.getElementById("delete-api-key").addEventListener("click", () => {
+    if (!confirm('Möchtest du den API-Schlüssel wirklich löschen? Du musst ihn erneut eingeben, um die Bilderkennung zu nutzen.')) {
+      return;
+    }
+    localStorage.removeItem('gemini_api_key');
+    document.getElementById("gemini-api-key").value = '';
+    setAIStatus("API-Schlüssel gelöscht", "info");
     setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
   });
 }

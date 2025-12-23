@@ -5,7 +5,19 @@ Interaktive mobile Web-App (ohne Build-Tools) für KI-gestützte Bewegungserkenn
 ### Schnellstart
 1. Repo clonen / herunterladen.  
 2. `index.html` im Browser öffnen (oder kleinen Server nutzen: `python -m http.server 8000`).  
-3. Kamera-Tracking im Bereich **Training** aktivieren, Food-Scan testen oder Plan aktualisieren.
+3. **Gemini API-Schlüssel konfigurieren:**
+   - Gehe zu [Google AI Studio](https://aistudio.google.com/app/apikey)
+   - Erstelle einen neuen API-Schlüssel
+   - Öffne die App → Profil → KI-Einstellungen
+   - Füge deinen API-Schlüssel ein und speichere ihn
+4. Kamera-Tracking im Bereich **Training** aktivieren, Food-Scan testen oder Plan aktualisieren.
+
+### Sicherheitshinweis
+- **Dein API-Schlüssel wird ausschließlich lokal in deinem Browser gespeichert** (localStorage)
+- Der Schlüssel wird **niemals an einen Server übertragen** oder ins Repository committed
+- Er wird nur direkt von deinem Browser an die Google Gemini API gesendet
+- Du kannst den Schlüssel jederzeit über die "Schlüssel löschen" Funktion entfernen
+- **Bring your own key**: Jeder Nutzer muss seinen eigenen kostenlosen oder bezahlten Gemini API-Schlüssel verwenden
 
 ### Implementierte Kernfunktionen
 - **Dashboard (Mobile First):** Tages-/Wochenstatus, Streak, Schnellstart für „Training scannen" und „Mahlzeit scannen".  
@@ -23,7 +35,7 @@ Interaktive mobile Web-App (ohne Build-Tools) für KI-gestützte Bewegungserkenn
   - Replay-Funktion für jeden gespeicherten Satz
   - Qualitätsmetriken und Form-Feedback im Replay
 - **Automatisches Trainingstracking:** Auto-Satzabschluss bei 12 Wdh., Technik-Score, ROM- und Tempo-Hinweise.  
-- **Food Scan (KI-gestützt):** Foto-Upload/Kamera mit OpenAI Vision API, Portion-Slider, erkannte Makros/Kalorien, Tagebuch-Log.  
+- **Food Scan (KI-gestützt):** Foto-Upload/Kamera mit Google Gemini Vision API, Portion-Slider, erkannte Makros/Kalorien, Tagebuch-Log.  
 - **KI-Trainingsplanung:** Formular für Ziel, Level, Frequenz und Equipment; generierter Wochenplan inkl. Exercises.  
 - **Integration & Datenschutz:** Dashboard verbindet Training/Ernährung, Profil mit Kamera-Opt-in, Wearable-Toggle, Vibration/Notifications.  
 - **Lokale Persistenz:** Alle Logs, Plan, Profileinstellungen und Skeleton-Frames werden in `localStorage` gesichert.
@@ -82,5 +94,19 @@ Das System verwendet eine State Machine für saubere Zustandsverwaltung:
 ### Hinweise zur Nutzung
 - Kamera wird nur nach Opt-in verwendet und kann jederzeit deaktiviert werden. Rohvideo wird nicht gespeichert.  
 - Die Pose-Logik ist mock-basiert und simuliert Skeleton-Tracking, sodass sie offline im Browser funktioniert.
-- Für Food-Scan: OpenAI API-Schlüssel unter Profil → KI-Einstellungen konfigurieren
+- **Für Food-Scan:** Kostenloser Gemini API-Schlüssel von [Google AI Studio](https://aistudio.google.com/app/apikey) erforderlich
+- **API-Schlüssel Sicherheit:**
+  - Wird nur lokal im Browser gespeichert (localStorage)
+  - Nie ins Repository committed oder auf Server hochgeladen
+  - Wird nur direkt an die Gemini API gesendet
+  - Kann jederzeit gelöscht werden
 - Mobile-First-Layout mit Bottom-Navigation, reduzierten Cards und Touch-optimierten Buttons.
+
+### API-Schlüssel einrichten
+1. Besuche [Google AI Studio](https://aistudio.google.com/app/apikey)
+2. Melde dich mit deinem Google-Konto an
+3. Klicke auf "Create API Key"
+4. Kopiere den generierten Schlüssel (beginnt mit "AIza...")
+5. Öffne die App → Profil → KI-Einstellungen
+6. Füge den Schlüssel ein und klicke auf "Schlüssel speichern"
+7. Der Schlüssel wird lokal in deinem Browser gespeichert und für Food-Scans verwendet
