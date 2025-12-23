@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FitSense AI | Mobile Fitness</title>
     <link rel="stylesheet" href="styles.css" />
+    <!-- MediaPipe Pose for real-time human pose estimation -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
     <script defer src="script.js"></script>
   </head>
   <body>
@@ -287,21 +292,13 @@
           <div class="card form-card">
             <div class="block-header">
               <h3>KI-Einstellungen</h3>
-              <span class="muted">Food Scanner Konfiguration</span>
+              <span class="muted">Food Scanner Status</span>
             </div>
-            <label>
-              Gemini API-Schlüssel (Google AI Studio)
-              <input type="password" id="gemini-api-key" placeholder="AIza..." />
-            </label>
-            <p class="muted small">
-              Der API-Schlüssel wird lokal im Browser gespeichert und nur für die Bilderkennung verwendet. Erstelle einen Schlüssel unter <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color: #3730a3;">Google AI Studio</a>.
+            <p class="muted small" style="padding: 12px; background: #dbeafe; border-radius: 8px; color: #1e3a8a;">
+              <strong>Sicherheitshinweis:</strong> Die KI-Bilderkennung verwendet einen Server-seitigen API-Schlüssel. Deine Bilder werden sicher verarbeitet und der API-Schlüssel ist niemals im Browser sichtbar.
             </p>
-            <div style="display: flex; gap: 8px;">
-              <button class="btn primary" id="save-api-key">Schlüssel speichern</button>
-              <button class="btn ghost" id="delete-api-key">Schlüssel löschen</button>
-            </div>
-            <p class="muted small" style="margin-top: 12px; padding: 12px; background: #fef3c7; border-radius: 8px; color: #92400e;">
-              <strong>Sicherheitshinweis:</strong> Dein API-Schlüssel wird ausschließlich lokal in deinem Browser gespeichert und niemals an einen Server übertragen. Er wird nur direkt an die Gemini API gesendet.
+            <p class="muted small" style="margin-top: 8px;">
+              Die Food-Scan-Funktion nutzt Google Gemini Vision API. Der API-Schlüssel wird ausschließlich auf dem Server gespeichert und verarbeitet.
             </p>
           </div>
         </section>

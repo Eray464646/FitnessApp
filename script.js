@@ -102,6 +102,12 @@ let currentFacingMode = "environment";
 let skeletonCanvas;
 let skeletonCtx;
 
+// MediaPipe Pose instance and camera
+let mediaPipePose = null;
+let mediaPipeCamera = null;
+let lastPoseResults = null;
+let poseDetectionActive = false;
+
 // Training states: WAITING -> READY -> ACTIVE <-> PAUSED -> STOPPED
 const TrainingState = {
   WAITING: "WAITING",      // Waiting for person to be detected
@@ -117,13 +123,17 @@ const poseState = {
   ready: false,
   replayFrames: [],
   trainingState: TrainingState.STOPPED,
-  currentSetFrames: []  // Frames for the current set
+  currentSetFrames: [],  // Frames for the current set
+  stableFrameCount: 0,   // Track consecutive stable frames
+  lostFrameCount: 0      // Track consecutive frames without person
 };
 const motionTracker = {
   progress: 0,
   lastQuality: 0,
   lastROM: "teilweise",
-  lastTempo: "kontrolliert"
+  lastTempo: "kontrolliert",
+  squatPhase: "up",       // Track squat phase: "up" or "down"
+  lastHipAngle: 180       // Track last hip angle for rep counting
 };
 
 function escapeHTML(str) {
@@ -183,75 +193,423 @@ function resetPoseTracking() {
   if (skeletonCtx && skeletonCanvas) {
     skeletonCtx.clearRect(0, 0, skeletonCanvas.width, skeletonCanvas.height);
   }
+  
+  // Reset pose state counters
+  poseState.stableFrameCount = 0;
+  poseState.lostFrameCount = 0;
 }
 
-function simulateSkeletonFrame() {
-  const keypointsTracked = 12 + Math.floor(Math.random() * 5);
-  const confidence = 0.55 + Math.random() * 0.4;
-  const stability = confidence > 0.7 && Math.random() > 0.2 ? "stable" : "shaky";
-  const rangeDelta = stability === "stable" ? 0.28 + Math.random() * 0.25 : 0.08;
-  const postureScore = Math.min(1, 0.65 + Math.random() * 0.35);
-  const tempoOptions = ["kontrolliert", "explosiv", "langsam"];
-  const tempo = tempoOptions[Math.floor(Math.random() * tempoOptions.length)];
+// Initialize MediaPipe Pose
+function initializeMediaPipePose() {
+  if (mediaPipePose) return mediaPipePose;
   
-  // Improved perspective-independent keypoint simulation
-  // Simulate different viewing angles with more realistic pose variations
-  const viewAngle = Math.random(); // 0 = frontal, 0.5 = side, 1 = back
-  const perspective = viewAngle < 0.3 ? "frontal" : viewAngle < 0.7 ? "seitlich" : "schräg";
-  
-  // Apply perspective transformation and add natural movement variation
-  const keypoints = COCO_KEYPOINTS.map(kp => {
-    let x = kp.baseX;
-    let y = kp.baseY;
-    
-    // Add perspective distortion based on viewing angle
-    if (perspective === "seitlich") {
-      // Side view: compress x-axis, adjust based on body part depth
-      const depthFactor = (kp.id >= 5 && kp.id <= 16) ? 0.3 : 0.2;
-      x = 0.5 + (x - 0.5) * depthFactor;
-    } else if (perspective === "schräg") {
-      // Diagonal view: partial compression
-      const depthFactor = 0.6;
-      x = 0.5 + (x - 0.5) * depthFactor;
+  // Create pose instance with optimized settings for mobile
+  mediaPipePose = new Pose({
+    locateFile: (file) => {
+      return `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`;
     }
-    
-    // Add natural movement variation (smaller for stable poses)
-    const jitter = stability === "stable" ? 0.015 : 0.04;
-    x += (Math.random() - 0.5) * jitter;
-    y += (Math.random() - 0.5) * jitter;
-    
-    // Clamp to valid range
-    x = Math.max(0.1, Math.min(0.9, x));
-    y = Math.max(0.05, Math.min(0.95, y));
-    
-    // Vary confidence per keypoint based on stability and perspective
-    let kpConfidence = confidence + (Math.random() - 0.5) * 0.15;
-    
-    // Some keypoints harder to detect from certain angles
-    if (perspective === "seitlich" && (kp.name.includes("eye") || kp.name.includes("ear"))) {
-      kpConfidence *= 0.7; // Face features harder to see from side
-    }
-    
-    return {
-      id: kp.id,
-      name: kp.name,
-      x,
-      y,
-      confidence: Math.max(0.2, Math.min(1, kpConfidence))
-    };
   });
   
-  return {
+  // Configure pose detection settings
+  mediaPipePose.setOptions({
+    modelComplexity: 1,           // 0=Lite, 1=Full, 2=Heavy (1 is good balance for mobile)
+    smoothLandmarks: true,          // Enable smoothing for more stable tracking
+    enableSegmentation: false,      // Disable segmentation to save resources
+    smoothSegmentation: false,
+    minDetectionConfidence: 0.5,    // Minimum confidence to detect person
+    minTrackingConfidence: 0.5      // Minimum confidence to track person
+  });
+  
+  // Set up result callback
+  mediaPipePose.onResults(onPoseResults);
+  
+  return mediaPipePose;
+}
+
+// Process pose detection results from MediaPipe
+function onPoseResults(results) {
+  if (!poseDetectionActive) return;
+  
+  lastPoseResults = results;
+  
+  // Process pose landmarks if person is detected
+  if (results.poseLandmarks && results.poseLandmarks.length > 0) {
+    processPoseLandmarks(results.poseLandmarks, results.poseWorldLandmarks);
+  } else {
+    // No person detected
+    handleNoPerson();
+  }
+  
+  // Draw skeleton on canvas
+  if (skeletonCanvas && skeletonCtx) {
+    drawMediaPipeSkeleton(results);
+  }
+}
+
+// Convert MediaPipe landmarks to our format and process
+function processPoseLandmarks(landmarks, worldLandmarks) {
+  // Calculate average confidence across all landmarks
+  const avgConfidence = landmarks.reduce((sum, lm) => sum + (lm.visibility || 0), 0) / landmarks.length;
+  
+  // Check if person is stable (good confidence)
+  const isStable = avgConfidence > 0.7;
+  
+  // Count keypoints with good visibility
+  const visibleKeypoints = landmarks.filter(lm => (lm.visibility || 0) > 0.5).length;
+  
+  // Create frame data in our format
+  const frame = {
     timestamp: Date.now(),
-    keypointsTracked,
-    confidence,
-    stability,
-    postureScore,
-    rangeDelta,
-    tempo,
-    keypoints,
-    perspective
+    keypointsTracked: visibleKeypoints,
+    confidence: avgConfidence,
+    stability: isStable ? "stable" : "shaky",
+    postureScore: avgConfidence,  // Use confidence as posture score
+    keypoints: convertMediaPipeToCocoKeypoints(landmarks),
+    perspective: "unknown"
   };
+  
+  // Store frame for replay
+  poseState.replayFrames.push(frame);
+  if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
+  
+  // Store frame for current set if actively training
+  if (poseState.trainingState === TrainingState.ACTIVE || poseState.trainingState === TrainingState.READY) {
+    poseState.currentSetFrames.push(frame);
+    if (poseState.currentSetFrames.length > 200) poseState.currentSetFrames.shift();
+  }
+  
+  updateReplayLog();
+  
+  // Update person detection state
+  poseState.lostFrameCount = 0;
+  
+  if (avgConfidence > 0.6) {
+    if (!poseState.personDetected) {
+      poseState.personDetected = true;
+      document.getElementById("camera-status").textContent = "Person erkannt";
+      setAIStatus("Person erkannt");
+    }
+    
+    // Check for stable tracking
+    if (isStable) {
+      poseState.stableFrameCount++;
+      if (poseState.stableFrameCount >= 3 && !poseState.keypointsStable) {
+        poseState.keypointsStable = true;
+        document.getElementById("camera-status").textContent = "Keypoints stabil";
+        setAIStatus("Pose stabil – Tracking startet");
+        
+        // Transition to READY state if waiting
+        if (poseState.trainingState === TrainingState.WAITING) {
+          poseState.ready = true;
+          poseState.trainingState = TrainingState.READY;
+          document.getElementById("training-feedback").innerHTML =
+            "<p class='title'>Pose stabil</p><p class='muted'>Start-Position erkannt – Bewegung verfolgen</p>";
+          startRepDetection();
+        }
+      }
+    } else {
+      poseState.stableFrameCount = Math.max(0, poseState.stableFrameCount - 1);
+    }
+  }
+  
+  // If actively tracking, process rep counting
+  if (poseState.trainingState === TrainingState.ACTIVE && poseState.keypointsStable) {
+    processRepCounting(worldLandmarks || landmarks);
+  }
+}
+
+// Handle no person detected
+function handleNoPerson() {
+  poseState.lostFrameCount++;
+  
+  if (poseState.lostFrameCount >= 3) {
+    poseState.personDetected = false;
+    poseState.keypointsStable = false;
+    poseState.ready = false;
+    poseState.stableFrameCount = 0;
+    
+    if (poseState.trainingState === TrainingState.ACTIVE || poseState.trainingState === TrainingState.READY) {
+      poseState.trainingState = TrainingState.WAITING;
+      clearInterval(repInterval);
+      document.getElementById("camera-status").textContent = "Warte auf Person...";
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Warte auf Person im Bild</p><p class='muted'>Tracking pausiert</p>";
+      setAIStatus("Warte auf Person im Bild", "warn");
+    }
+  }
+}
+
+// Convert MediaPipe 33-point format to COCO 17-point format
+function convertMediaPipeToCocoKeypoints(mpLandmarks) {
+  // MediaPipe to COCO mapping
+  // MediaPipe has 33 landmarks, COCO has 17
+  const mapping = {
+    0: 0,   // nose
+    2: 1,   // left_eye (MediaPipe left_eye_inner -> COCO left_eye)
+    5: 2,   // right_eye (MediaPipe right_eye_inner -> COCO right_eye)
+    7: 3,   // left_ear
+    8: 4,   // right_ear
+    11: 5,  // left_shoulder
+    12: 6,  // right_shoulder
+    13: 7,  // left_elbow
+    14: 8,  // right_elbow
+    15: 9,  // left_wrist
+    16: 10, // right_wrist
+    23: 11, // left_hip
+    24: 12, // right_hip
+    25: 13, // left_knee
+    26: 14, // right_knee
+    27: 15, // left_ankle
+    28: 16  // right_ankle
+  };
+  
+  const cocoKeypoints = new Array(17);
+  
+  for (const [mpIdx, cocoIdx] of Object.entries(mapping)) {
+    const mpLandmark = mpLandmarks[parseInt(mpIdx)];
+    if (mpLandmark) {
+      cocoKeypoints[cocoIdx] = {
+        id: cocoIdx,
+        name: COCO_KEYPOINTS[cocoIdx].name,
+        x: mpLandmark.x,
+        y: mpLandmark.y,
+        confidence: mpLandmark.visibility || 0.5
+      };
+    }
+  }
+  
+  return cocoKeypoints;
+}
+
+// Calculate angle between three points
+function calculateAngle(a, b, c) {
+  // a, b, c are landmarks with x, y, z coordinates
+  const radians = Math.atan2(c.y - b.y, c.x - b.x) - Math.atan2(a.y - b.y, a.x - b.x);
+  let angle = Math.abs(radians * 180.0 / Math.PI);
+  
+  if (angle > 180.0) {
+    angle = 360 - angle;
+  }
+  
+  return angle;
+}
+
+// Process rep counting based on pose landmarks
+function processRepCounting(landmarks) {
+  const exercise = document.getElementById("exercise-select").value;
+  
+  // Different rep counting logic based on exercise type
+  if (exercise === "Kniebeugen" || exercise.includes("Squat")) {
+    countSquatReps(landmarks);
+  } else if (exercise === "Liegestütze" || exercise.includes("Push")) {
+    countPushupReps(landmarks);
+  } else {
+    // Generic movement-based counting
+    countGenericReps(landmarks);
+  }
+}
+
+// Count squat repetitions based on hip angle
+function countSquatReps(landmarks) {
+  // Get hip, knee, and ankle landmarks
+  // MediaPipe indices: hip=23/24, knee=25/26, ankle=27/28
+  const leftHip = landmarks[23];
+  const leftKnee = landmarks[25];
+  const leftAnkle = landmarks[27];
+  const leftShoulder = landmarks[11];
+  
+  if (!leftHip || !leftKnee || !leftAnkle || !leftShoulder) {
+    return;  // Not enough landmarks visible
+  }
+  
+  // Calculate hip angle (torso to thigh)
+  const hipAngle = calculateAngle(leftShoulder, leftHip, leftKnee);
+  
+  // Calculate knee angle
+  const kneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
+  
+  // Squat detection logic
+  // Down phase: hip angle < 100 and knee angle < 110
+  // Up phase: hip angle > 150 and knee angle > 150
+  
+  if (motionTracker.squatPhase === "up" && hipAngle < 100 && kneeAngle < 110) {
+    // Entering down phase
+    motionTracker.squatPhase = "down";
+    motionTracker.lastROM = hipAngle < 90 ? "voll" : "teilweise";
+    document.getElementById("training-feedback").innerHTML =
+      "<p class='title'>Abwärtsbewegung</p><p class='muted'>Gehe tiefer für volle ROM</p>";
+  } else if (motionTracker.squatPhase === "down" && hipAngle > 150 && kneeAngle > 150) {
+    // Entering up phase - count rep
+    motionTracker.squatPhase = "up";
+    repCount++;
+    document.getElementById("rep-count").textContent = repCount;
+    document.getElementById("training-feedback").innerHTML =
+      "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gute Form!</p>";
+    
+    // Provide technique feedback
+    if (motionTracker.lastROM === "voll") {
+      motionTracker.lastQuality = 90 + Math.floor(Math.random() * 10);
+    } else {
+      motionTracker.lastQuality = 70 + Math.floor(Math.random() * 15);
+    }
+    
+    // Auto-save at 12 reps
+    if (repCount >= 12) {
+      saveSet(true);
+    }
+  }
+  
+  motionTracker.lastHipAngle = hipAngle;
+}
+
+// Count push-up repetitions
+function countPushupReps(landmarks) {
+  // Get shoulder, elbow, and wrist landmarks
+  const leftShoulder = landmarks[11];
+  const leftElbow = landmarks[13];
+  const leftWrist = landmarks[15];
+  const leftHip = landmarks[23];
+  
+  if (!leftShoulder || !leftElbow || !leftWrist || !leftHip) {
+    return;
+  }
+  
+  // Calculate elbow angle
+  const elbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
+  
+  // Push-up detection
+  // Down: elbow angle < 90
+  // Up: elbow angle > 160
+  
+  if (motionTracker.squatPhase === "up" && elbowAngle < 90) {
+    motionTracker.squatPhase = "down";
+    document.getElementById("training-feedback").innerHTML =
+      "<p class='title'>Abwärtsbewegung</p><p class='muted'>Halte den Rücken gerade</p>";
+  } else if (motionTracker.squatPhase === "down" && elbowAngle > 160) {
+    motionTracker.squatPhase = "up";
+    repCount++;
+    document.getElementById("rep-count").textContent = repCount;
+    document.getElementById("training-feedback").innerHTML =
+      "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gut gemacht!</p>";
+    
+    motionTracker.lastQuality = 85 + Math.floor(Math.random() * 15);
+    
+    if (repCount >= 12) {
+      saveSet(true);
+    }
+  }
+}
+
+// Generic rep counting based on overall movement
+function countGenericReps(landmarks) {
+  // Use center of mass movement for generic exercises
+  // Calculate average y-position of key joints
+  const keyJoints = [11, 12, 23, 24]; // shoulders and hips
+  let avgY = 0;
+  let count = 0;
+  
+  for (const idx of keyJoints) {
+    if (landmarks[idx]) {
+      avgY += landmarks[idx].y;
+      count++;
+    }
+  }
+  
+  if (count === 0) return;
+  avgY /= count;
+  
+  // Track vertical movement
+  const movement = avgY - (motionTracker.lastVerticalPos || avgY);
+  motionTracker.lastVerticalPos = avgY;
+  
+  // Simple up-down counting
+  if (Math.abs(movement) > 0.05) {
+    motionTracker.progress = Math.min(1, motionTracker.progress + Math.abs(movement) * 2);
+    
+    if (motionTracker.progress >= 1) {
+      repCount++;
+      motionTracker.progress = 0;
+      document.getElementById("rep-count").textContent = repCount;
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Wiederholung gezählt</p><p class='muted'>Weiter so!</p>";
+      
+      if (repCount >= 12) {
+        saveSet(true);
+      }
+    }
+  }
+}
+
+// Draw MediaPipe skeleton on canvas
+function drawMediaPipeSkeleton(results) {
+  if (!skeletonCanvas || !skeletonCtx) return;
+  
+  const ctx = skeletonCtx;
+  const width = skeletonCanvas.width;
+  const height = skeletonCanvas.height;
+  
+  // Clear canvas
+  ctx.clearRect(0, 0, width, height);
+  
+  if (!results.poseLandmarks || results.poseLandmarks.length === 0) {
+    return;  // No person detected
+  }
+  
+  // Draw connections using MediaPipe's built-in connection pairs
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  
+  // MediaPipe POSE_CONNECTIONS
+  const connections = window.POSE_CONNECTIONS || [
+    [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
+    [9, 10], [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21],
+    [17, 19], [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
+    [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [27, 29], [27, 31],
+    [29, 31], [24, 26], [26, 28], [28, 30], [28, 32], [30, 32]
+  ];
+  
+  // Draw connections
+  for (const [startIdx, endIdx] of connections) {
+    const start = results.poseLandmarks[startIdx];
+    const end = results.poseLandmarks[endIdx];
+    
+    if (start && end && (start.visibility || 0) > 0.3 && (end.visibility || 0) > 0.3) {
+      const x1 = start.x * width;
+      const y1 = start.y * height;
+      const x2 = end.x * width;
+      const y2 = end.y * height;
+      
+      const avgConfidence = ((start.visibility || 0) + (end.visibility || 0)) / 2;
+      const opacity = Math.min(1, Math.max(0.3, avgConfidence));
+      
+      ctx.strokeStyle = getConfidenceColor(avgConfidence, opacity);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+  }
+  
+  // Draw landmarks
+  for (const landmark of results.poseLandmarks) {
+    if ((landmark.visibility || 0) > 0.3) {
+      const x = landmark.x * width;
+      const y = landmark.y * height;
+      const confidence = landmark.visibility || 0.5;
+      const radius = 4 + confidence * 4;
+      const opacity = Math.min(1, Math.max(0.5, confidence));
+      
+      ctx.fillStyle = getKeypointColor(confidence, opacity);
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // Add white border for visibility
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+    }
+  }
 }
 
 function updateReplayLog() {
@@ -331,75 +689,34 @@ function drawSkeletonOnCanvas(frame) {
 }
 
 function startPoseBootstrap() {
-  clearInterval(poseDetectionInterval);
   resetPoseTracking();
   poseState.trainingState = TrainingState.WAITING;
-  let stableFrames = 0;
-  let lostFrames = 0;
-  poseDetectionInterval = setInterval(() => {
-    if (!cameraStream || poseState.trainingState === TrainingState.STOPPED) {
-      clearInterval(poseDetectionInterval);
-      return;
-    }
-    
-    // Don't process if paused - maintain pause state
-    if (poseState.trainingState === TrainingState.PAUSED) {
-      return;
-    }
-    
-    const frame = simulateSkeletonFrame();
-    poseState.replayFrames.push(frame);
-    if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
-    
-    // Draw skeleton on canvas in real-time
-    drawSkeletonOnCanvas(frame);
-    
-    // Store frame for current set
-    if (poseState.trainingState === TrainingState.ACTIVE || poseState.trainingState === TrainingState.READY) {
-      poseState.currentSetFrames.push(frame);
-      if (poseState.currentSetFrames.length > 200) poseState.currentSetFrames.shift();
-    }
-    
-    updateReplayLog();
-
-    lostFrames = frame.confidence < 0.45 ? lostFrames + 1 : 0;
-    if (lostFrames >= 3) {
-      poseState.personDetected = false;
-      poseState.keypointsStable = false;
-      poseState.ready = false;
-      poseState.trainingState = TrainingState.WAITING;
-      stableFrames = 0;
-      clearInterval(repInterval);
-      document.getElementById("camera-status").textContent = "Warte auf Person...";
-      document.getElementById("training-feedback").innerHTML =
-        "<p class='title'>Warte auf Person im Bild</p><p class='muted'>Tracking pausiert</p>";
-      setAIStatus("Warte auf Person im Bild", "warn");
-      return;
-    }
-
-    if (!poseState.personDetected && frame.confidence > 0.65) {
-      poseState.personDetected = true;
-      document.getElementById("camera-status").textContent = "Person erkannt";
-      setAIStatus("Person erkannt");
-    }
-
-    if (poseState.personDetected) {
-      stableFrames = frame.stability === "stable" && frame.confidence > 0.7 ? stableFrames + 1 : Math.max(0, stableFrames - 1);
-      if (!poseState.keypointsStable && stableFrames >= 3) {
-        poseState.keypointsStable = true;
-        document.getElementById("camera-status").textContent = "Keypoints stabil";
-        setAIStatus("Pose stabil – Tracking startet");
-      }
-    }
-
-    if (poseState.keypointsStable && !poseState.ready && poseState.trainingState === TrainingState.WAITING) {
-      poseState.ready = true;
-      poseState.trainingState = TrainingState.READY;
-      document.getElementById("training-feedback").innerHTML =
-        "<p class='title'>Pose stabil</p><p class='muted'>Start-Position erkannt – Bewegung verfolgen</p>";
-      startRepDetection();
-    }
-  }, 800);
+  
+  // Initialize MediaPipe Pose if not already done
+  if (!mediaPipePose) {
+    initializeMediaPipePose();
+  }
+  
+  // Start pose detection
+  poseDetectionActive = true;
+  
+  // Set up camera for MediaPipe
+  const videoElement = document.getElementById("camera-feed");
+  
+  if (!mediaPipeCamera) {
+    mediaPipeCamera = new Camera(videoElement, {
+      onFrame: async () => {
+        if (poseDetectionActive && mediaPipePose) {
+          await mediaPipePose.send({image: videoElement});
+        }
+      },
+      width: 640,
+      height: 480
+    });
+  }
+  
+  // Start camera
+  mediaPipeCamera.start();
 }
 
 function playReplay() {
@@ -691,8 +1008,18 @@ async function startCamera(facingMode = activeFacingMode) {
 }
 
 function stopCamera() {
+  // Stop pose detection
+  poseDetectionActive = false;
+  
+  // Stop MediaPipe camera
+  if (mediaPipeCamera) {
+    mediaPipeCamera.stop();
+  }
+  
+  // Stop camera stream
   cameraStream?.getTracks().forEach((t) => t.stop());
   cameraStream = null;
+  
   clearInterval(repInterval);
   clearInterval(poseDetectionInterval);
   poseState.ready = false;
@@ -707,7 +1034,6 @@ function stopCamera() {
 }
 
 function startRepDetection() {
-  clearInterval(repInterval);
   if (!poseState.keypointsStable) {
     document.getElementById("training-feedback").innerHTML =
       "<p class='title'>Warte auf stabile Pose</p><p class='muted'>Tracking startet nach Keypoints</p>";
@@ -716,65 +1042,13 @@ function startRepDetection() {
   
   poseState.trainingState = TrainingState.ACTIVE;
   setAIStatus("Tracking aktiv");
-  repInterval = setInterval(() => {
-    // Don't count reps if not in active state
-    if (poseState.trainingState !== TrainingState.ACTIVE) {
-      return;
-    }
-    
-    if (!poseState.personDetected || !poseState.keypointsStable) {
-      motionTracker.progress = 0;
-      document.getElementById("training-feedback").innerHTML =
-        "<p class='title'>Person verloren</p><p class='muted'>Warte auf stabile Keypoints</p>";
-      setAIStatus("Warte auf Person im Bild", "warn");
-      return;
-    }
-
-    const frame = simulateSkeletonFrame();
-    poseState.replayFrames.push(frame);
-    if (poseState.replayFrames.length > 120) poseState.replayFrames.shift();
-    
-    // Draw skeleton on canvas in real-time
-    drawSkeletonOnCanvas(frame);
-    
-    // Store frame for current set
-    poseState.currentSetFrames.push(frame);
-    if (poseState.currentSetFrames.length > 200) poseState.currentSetFrames.shift();
-    
-    updateReplayLog();
-
-    if (frame.stability !== "stable" || frame.confidence < 0.65) {
-      motionTracker.progress = Math.max(0, motionTracker.progress - 0.2);
-      document.getElementById("training-feedback").innerHTML =
-        "<p class='title'>Tracking instabil</p><p class='muted'>Position ruhig halten</p>";
-      return;
-    }
-
-    motionTracker.progress = Math.min(1, motionTracker.progress + frame.rangeDelta);
-    motionTracker.lastTempo = frame.tempo;
-    motionTracker.lastQuality = Math.round(frame.postureScore * 100);
-    motionTracker.lastROM =
-      motionTracker.progress >= 0.95 ? "voll" : motionTracker.progress >= 0.6 ? "teilweise" : "unvollständig";
-    tempoLabel = frame.tempo;
-
-    const feedback =
-      motionTracker.progress < 0.3
-        ? "<p class='title'>Start-Position</p><p class='muted'>Haltung beibehalten</p>"
-        : motionTracker.progress < 0.8
-          ? "<p class='title'>Bewegung erkannt</p><p class='muted'>Volle ROM ausführen</p>"
-          : "<p class='title'>End-Position</p><p class='muted'>Spanne Core an</p>";
-    document.getElementById("training-feedback").innerHTML = feedback;
-
-    if (motionTracker.progress >= 1) {
-      repCount += 1;
-      motionTracker.progress = 0;
-      document.getElementById("rep-count").textContent = repCount;
-      document.getElementById("tempo-info").textContent = `Tempo: ${tempoLabel}`;
-      document.getElementById("training-feedback").innerHTML =
-        "<p class='title'>Saubere Wiederholung</p><p class='muted'>Start → Bewegung → End-Position</p>";
-      if (repCount >= 12) saveSet(true);
-    }
-  }, 950);
+  
+  // Reset motion tracker for new tracking session
+  motionTracker.squatPhase = "up";
+  motionTracker.progress = 0;
+  
+  // Rep counting is now handled in processRepCounting() called from onPoseResults()
+  // No need for separate interval
 }
 
 async function handleStartTraining() {
@@ -887,91 +1161,60 @@ async function detectFoodWithAI(imageDataUrl) {
   setAIStatus("Analysiere Bild...", "info");
   
   try {
-    // Extract base64 data and MIME type from data URL
-    const matches = imageDataUrl.match(/^data:(.+);base64,(.+)$/);
-    if (!matches) {
-      throw new Error('Ungültiges Bildformat');
-    }
-    const mimeType = matches[1] || 'image/jpeg';
-    const base64Data = matches[2];
-    
-    // Call Gemini Vision API
-    const apiKey = getGeminiKey();
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    // Call backend API endpoint (serverless function)
+    // The API key is stored securely on the server, never exposed to frontend
+    const response = await fetch('/api/food-scan', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        contents: [{
-          parts: [
-            {
-              text: "Analysiere dieses Bild und identifiziere alle Lebensmittel. Gib die Antwort als JSON zurück mit folgendem Format: {\"detected\": true/false, \"items\": [\"item1\", \"item2\"], \"label\": \"Hauptgericht Name\", \"confidence\": 0-100, \"calories\": Zahl, \"protein\": Zahl, \"carbs\": Zahl, \"fat\": Zahl, \"reasoning\": \"kurze Erklärung\"}. Wenn kein Essen erkennbar ist, setze detected auf false. Schätze realistische Nährwerte für eine typische Portion. Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text oder Markdown-Formatierung."
-            },
-            {
-              inline_data: {
-                mime_type: mimeType,
-                data: base64Data
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.4,
-          topK: 32,
-          topP: 1,
-          maxOutputTokens: 500
-        }
+        image: imageDataUrl
       })
     });
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
+      console.error('Backend API error:', response.status, errorData);
       
       // Handle specific error cases
-      if (response.status === 400) {
-        throw new Error('Ungültiger API-Schlüssel oder ungültige Anfrage');
+      let errorMessage = 'Fehler bei der Bilderkennung';
+      if (response.status === 500 && errorData.error === 'Server configuration error') {
+        errorMessage = 'Server nicht konfiguriert. Bitte Administrator kontaktieren.';
       } else if (response.status === 429) {
-        throw new Error('API-Limit erreicht. Bitte versuche es später erneut');
-      } else if (response.status === 403) {
-        throw new Error('API-Schlüssel ungültig oder keine Berechtigung');
-      } else {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        errorMessage = 'API-Limit erreicht. Bitte versuche es später erneut.';
+      } else if (response.status === 400) {
+        errorMessage = 'Ungültiges Bildformat. Bitte versuche ein anderes Bild.';
       }
+      
+      throw new Error(errorMessage);
     }
 
-    const data = await response.json();
+    const result = await response.json();
     
-    // Extract text from Gemini response
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error('Keine gültige Antwort von der API erhalten');
-    }
-    
-    const content = data.candidates[0].content.parts[0].text;
-    
-    // Try to extract JSON from the response
-    let result;
-    try {
-      // Try to parse as direct JSON
-      result = JSON.parse(content);
-    } catch {
-      // Try to extract JSON from markdown code blocks
-      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[1]);
-      } else {
-        // Try to find JSON object in the text
-        const objectMatch = content.match(/\{[\s\S]*\}/);
-        if (objectMatch) {
-          result = JSON.parse(objectMatch[0]);
-        } else {
-          throw new Error('Could not parse response');
-        }
-      }
+    // Debug logging in development
+    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+      console.log('Food detection result:', {
+        detected: result.detected,
+        label: result.label,
+        confidence: result.confidence,
+        items: result.items
+      });
     }
 
     if (!result.detected) {
       setAIStatus("Kein Essen erkannt", "warn");
+      
+      // Show helpful message for low confidence
+      if (result.message) {
+        document.getElementById("food-details").innerHTML = `
+          <p class='muted' style='color: #92400e;'>
+            ${escapeHTML(result.message)}<br/>
+            <span class='small'>Versuche ein klareres Foto aufzunehmen.</span>
+          </p>
+        `;
+      }
+      
       return null;
     }
 
@@ -983,8 +1226,8 @@ async function detectFoodWithAI(imageDataUrl) {
       protein: Math.round(result.protein),
       carbs: Math.round(result.carbs),
       fat: Math.round(result.fat),
-      confidence: result.confidence,
-      items: result.items,
+      confidence: result.confidence || 80,
+      items: result.items || [result.label],
       reasoning: result.reasoning
     };
     
@@ -997,7 +1240,7 @@ async function detectFoodWithAI(imageDataUrl) {
     document.getElementById("food-details").innerHTML = `
       <p class='muted' style='color: #b91c1c;'>
         Fehler bei der Bilderkennung: ${escapeHTML(errorMessage)}<br/>
-        <span class='small'>Bitte überprüfe die API-Konfiguration oder versuche es später erneut.</span>
+        <span class='small'>Bitte versuche es später erneut.</span>
       </p>
     `;
     
@@ -1005,23 +1248,8 @@ async function detectFoodWithAI(imageDataUrl) {
   }
 }
 
-function getGeminiKey() {
-  // Migrate old OpenAI key to new Gemini key (one-time cleanup)
-  // Note: We don't migrate the actual key value because OpenAI and Gemini
-  // use completely different API keys. Users will need to get a new Gemini key.
-  const oldKey = localStorage.getItem('openai_api_key');
-  if (oldKey && !localStorage.getItem('gemini_api_key')) {
-    // Remove old OpenAI key as it's not compatible with Gemini
-    localStorage.removeItem('openai_api_key');
-  }
-  
-  // Get API key from localStorage (user sets it in profile)
-  const storedKey = localStorage.getItem('gemini_api_key');
-  if (storedKey) return storedKey;
-  
-  // If no key is stored, throw error - user must configure it in profile
-  throw new Error('Kein Gemini API-Schlüssel konfiguriert. Bitte gehe zu Profil → KI-Einstellungen.');
-}
+// API key management removed - keys are now stored securely on the server
+// This function is no longer needed as all API calls go through backend
 
 function renderFoodDetection() {
   if (!lastFoodDetection) {
@@ -1202,12 +1430,6 @@ function hydrateProfile() {
   document.getElementById("camera-consent").checked = !!state.profile.cameraConsent;
   document.getElementById("notification-toggle").checked = state.profile.notifications ?? true;
   document.getElementById("wearable-toggle").checked = !!state.profile.wearable;
-  
-  // Load API key (masked display)
-  const apiKey = localStorage.getItem('gemini_api_key');
-  if (apiKey) {
-    document.getElementById("gemini-api-key").value = apiKey;
-  }
 }
 
 function bindProfile() {
@@ -1222,35 +1444,6 @@ function bindProfile() {
   document.getElementById("wearable-toggle").addEventListener("change", (e) => {
     state.profile.wearable = e.target.checked;
     persist();
-  });
-  
-  document.getElementById("save-api-key").addEventListener("click", () => {
-    const apiKey = document.getElementById("gemini-api-key").value.trim();
-    if (!apiKey) {
-      setAIStatus("Bitte API-Schlüssel eingeben", "warn");
-      setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
-      return;
-    }
-    // Validate Gemini API key format: starts with 'AIza' and has reasonable length
-    // Gemini API keys typically start with 'AIza' and are around 39 characters long
-    if (!apiKey.startsWith('AIza') || apiKey.length < 30) {
-      setAIStatus("Ungültiges API-Schlüssel Format", "warn");
-      setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
-      return;
-    }
-    localStorage.setItem('gemini_api_key', apiKey);
-    setAIStatus("API-Schlüssel gespeichert", "info");
-    setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
-  });
-  
-  document.getElementById("delete-api-key").addEventListener("click", () => {
-    if (!confirm('Möchtest du den API-Schlüssel wirklich löschen? Du musst ihn erneut eingeben, um die Bilderkennung zu nutzen.')) {
-      return;
-    }
-    localStorage.removeItem('gemini_api_key');
-    document.getElementById("gemini-api-key").value = '';
-    setAIStatus("API-Schlüssel gelöscht", "info");
-    setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
   });
 }
 
