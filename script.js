@@ -887,8 +887,13 @@ async function detectFoodWithAI(imageDataUrl) {
   setAIStatus("Analysiere Bild...", "info");
   
   try {
-    // Extract base64 data from data URL
-    const base64Data = imageDataUrl.split(',')[1];
+    // Extract base64 data and MIME type from data URL
+    const matches = imageDataUrl.match(/^data:(.+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('Ungültiges Bildformat');
+    }
+    const mimeType = matches[1] || 'image/jpeg';
+    const base64Data = matches[2];
     
     // Call Gemini Vision API
     const apiKey = getGeminiKey();
@@ -905,7 +910,7 @@ async function detectFoodWithAI(imageDataUrl) {
             },
             {
               inline_data: {
-                mime_type: "image/jpeg",
+                mime_type: mimeType,
                 data: base64Data
               }
             }
@@ -1001,9 +1006,12 @@ async function detectFoodWithAI(imageDataUrl) {
 }
 
 function getGeminiKey() {
-  // Migrate old OpenAI key to new Gemini key (one-time migration)
+  // Migrate old OpenAI key to new Gemini key (one-time cleanup)
+  // Note: We don't migrate the actual key value because OpenAI and Gemini
+  // use completely different API keys. Users will need to get a new Gemini key.
   const oldKey = localStorage.getItem('openai_api_key');
   if (oldKey && !localStorage.getItem('gemini_api_key')) {
+    // Remove old OpenAI key as it's not compatible with Gemini
     localStorage.removeItem('openai_api_key');
   }
   
@@ -1224,6 +1232,7 @@ function bindProfile() {
       return;
     }
     // Validate Gemini API key format: starts with 'AIza' and has reasonable length
+    // Gemini API keys typically start with 'AIza' and are around 39 characters long
     if (!apiKey.startsWith('AIza') || apiKey.length < 30) {
       setAIStatus("Ungültiges API-Schlüssel Format", "warn");
       setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
