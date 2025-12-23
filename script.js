@@ -1,5 +1,12 @@
 const STORAGE_KEY = "fitnessAppState";
 
+// Pose detection constants
+const MIN_PERSON_CONFIDENCE = 0.6;  // Minimum confidence to consider person detected
+const MIN_STABLE_CONFIDENCE = 0.7;   // Minimum confidence for stable tracking
+const MIN_KEYPOINT_VISIBILITY = 0.3; // Minimum visibility for drawing keypoints
+const STABLE_FRAMES_REQUIRED = 3;    // Number of consecutive stable frames needed
+const LOST_FRAMES_THRESHOLD = 3;     // Number of frames before person is considered lost
+
 // COCO Pose keypoint definitions
 const COCO_KEYPOINTS = [
   { id: 0, name: "nose", baseX: 0.5, baseY: 0.15 },
@@ -251,10 +258,10 @@ function processPoseLandmarks(landmarks, worldLandmarks) {
   const avgConfidence = landmarks.reduce((sum, lm) => sum + (lm.visibility || 0), 0) / landmarks.length;
   
   // Check if person is stable (good confidence)
-  const isStable = avgConfidence > 0.7;
+  const isStable = avgConfidence > MIN_STABLE_CONFIDENCE;
   
   // Count keypoints with good visibility
-  const visibleKeypoints = landmarks.filter(lm => (lm.visibility || 0) > 0.5).length;
+  const visibleKeypoints = landmarks.filter(lm => (lm.visibility || 0) > MIN_KEYPOINT_VISIBILITY).length;
   
   // Create frame data in our format
   const frame = {
@@ -282,7 +289,7 @@ function processPoseLandmarks(landmarks, worldLandmarks) {
   // Update person detection state
   poseState.lostFrameCount = 0;
   
-  if (avgConfidence > 0.6) {
+  if (avgConfidence > MIN_PERSON_CONFIDENCE) {
     if (!poseState.personDetected) {
       poseState.personDetected = true;
       document.getElementById("camera-status").textContent = "Person erkannt";
@@ -292,7 +299,7 @@ function processPoseLandmarks(landmarks, worldLandmarks) {
     // Check for stable tracking
     if (isStable) {
       poseState.stableFrameCount++;
-      if (poseState.stableFrameCount >= 3 && !poseState.keypointsStable) {
+      if (poseState.stableFrameCount >= STABLE_FRAMES_REQUIRED && !poseState.keypointsStable) {
         poseState.keypointsStable = true;
         document.getElementById("camera-status").textContent = "Keypoints stabil";
         setAIStatus("Pose stabil – Tracking startet");
@@ -321,7 +328,7 @@ function processPoseLandmarks(landmarks, worldLandmarks) {
 function handleNoPerson() {
   poseState.lostFrameCount++;
   
-  if (poseState.lostFrameCount >= 3) {
+  if (poseState.lostFrameCount >= LOST_FRAMES_THRESHOLD) {
     poseState.personDetected = false;
     poseState.keypointsStable = false;
     poseState.ready = false;
@@ -558,21 +565,21 @@ function drawMediaPipeSkeleton(results) {
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   
-  // MediaPipe POSE_CONNECTIONS
-  const connections = window.POSE_CONNECTIONS || [
-    [0, 1], [1, 2], [2, 3], [3, 7], [0, 4], [4, 5], [5, 6], [6, 8],
-    [9, 10], [11, 12], [11, 13], [13, 15], [15, 17], [15, 19], [15, 21],
-    [17, 19], [12, 14], [14, 16], [16, 18], [16, 20], [16, 22], [18, 20],
-    [11, 23], [12, 24], [23, 24], [23, 25], [25, 27], [27, 29], [27, 31],
-    [29, 31], [24, 26], [26, 28], [28, 30], [28, 32], [30, 32]
-  ];
+  // Get MediaPipe POSE_CONNECTIONS from global scope
+  // If not available, log error and skip connection drawing
+  if (!window.POSE_CONNECTIONS) {
+    console.error('MediaPipe POSE_CONNECTIONS not loaded. Skeleton connections will not be drawn.');
+    // Still draw landmarks below even if connections are missing
+  }
+  
+  const connections = window.POSE_CONNECTIONS || [];
   
   // Draw connections
   for (const [startIdx, endIdx] of connections) {
     const start = results.poseLandmarks[startIdx];
     const end = results.poseLandmarks[endIdx];
     
-    if (start && end && (start.visibility || 0) > 0.3 && (end.visibility || 0) > 0.3) {
+    if (start && end && (start.visibility || 0) > MIN_KEYPOINT_VISIBILITY && (end.visibility || 0) > MIN_KEYPOINT_VISIBILITY) {
       const x1 = start.x * width;
       const y1 = start.y * height;
       const x2 = end.x * width;
@@ -591,7 +598,7 @@ function drawMediaPipeSkeleton(results) {
   
   // Draw landmarks
   for (const landmark of results.poseLandmarks) {
-    if ((landmark.visibility || 0) > 0.3) {
+    if ((landmark.visibility || 0) > MIN_KEYPOINT_VISIBILITY) {
       const x = landmark.x * width;
       const y = landmark.y * height;
       const confidence = landmark.visibility || 0.5;
@@ -649,7 +656,7 @@ function drawSkeletonOnCanvas(frame) {
     const kpA = frame.keypoints[a];
     const kpB = frame.keypoints[b];
     
-    if (kpA && kpB && kpA.confidence > 0.3 && kpB.confidence > 0.3) {
+    if (kpA && kpB && kpA.confidence > MIN_KEYPOINT_VISIBILITY && kpB.confidence > MIN_KEYPOINT_VISIBILITY) {
       const x1 = kpA.x * width;
       const y1 = kpA.y * height;
       const x2 = kpB.x * width;
@@ -668,7 +675,7 @@ function drawSkeletonOnCanvas(frame) {
   
   // Draw keypoints
   frame.keypoints.forEach(kp => {
-    if (kp.confidence > 0.3) {
+    if (kp.confidence > MIN_KEYPOINT_VISIBILITY) {
       const x = kp.x * width;
       const y = kp.y * height;
       const radius = 4 + kp.confidence * 4;
@@ -821,7 +828,7 @@ function renderSkeletonViz(keypoints) {
   
   // Draw connections between keypoints (COCO pose format)
   SKELETON_CONNECTIONS.forEach(([a, b]) => {
-    if (keypoints[a] && keypoints[b] && keypoints[a].confidence > 0.3 && keypoints[b].confidence > 0.3) {
+    if (keypoints[a] && keypoints[b] && keypoints[a].confidence > MIN_KEYPOINT_VISIBILITY && keypoints[b].confidence > MIN_KEYPOINT_VISIBILITY) {
       const x1 = keypoints[a].x * width;
       const y1 = keypoints[a].y * height;
       const x2 = keypoints[b].x * width;
@@ -836,7 +843,7 @@ function renderSkeletonViz(keypoints) {
   
   // Draw keypoints
   keypoints.forEach(kp => {
-    if (kp.confidence > 0.3) {
+    if (kp.confidence > MIN_KEYPOINT_VISIBILITY) {
       const x = kp.x * width;
       const y = kp.y * height;
       const confidence = Math.min(1, Math.max(0, kp.confidence));
