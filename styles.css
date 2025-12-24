@@ -5,10 +5,10 @@
   --primary: #ffffff;
   --primary-strong: #ffffff;
   --surface: rgba(31, 41, 55, 0.5); /* bg-gray-800/50 */
-  --muted: #9ca3af; /* text-gray-400 */
-  --shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  --muted: #6b7280; /* text-gray-500 - slightly darker for better contrast */
+  --shadow: 0 0 15px rgba(255, 255, 255, 0.15); /* Reduced opacity from 0.3 to 0.15 */
   --radius: 24px; /* rounded-3xl */
-  --border-color: rgba(55, 65, 81, 0.5); /* border-gray-700/50 */
+  --border-color: rgba(55, 65, 81, 0.3); /* border-gray-700/30 - reduced for less clutter */
   --nav-safe-area: 120px; /* Safe area padding for floating navigation */
   --nav-safe-area-mobile: 100px; /* Safe area padding for mobile */
   --nav-background: rgba(17, 24, 39, 0.9); /* Navigation background */
@@ -40,6 +40,9 @@ main {
   flex: 1;
   padding: 16px;
   padding-bottom: var(--nav-safe-area); /* pb-24 for safe area */
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* Increased spacing between sections */
 }
 
 .top-bar {
@@ -68,7 +71,7 @@ main {
   width: 12px;
   height: 12px;
   background: #ffffff;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3); /* Reduced from 0.5 */
   border-radius: 50%;
   display: inline-block;
 }
@@ -80,7 +83,7 @@ main {
   border-radius: 12px;
   font-weight: 600;
   font-size: 14px;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.2); /* Reduced from 0.3 */
 }
 
 .view {
@@ -96,12 +99,12 @@ main {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   color: white;
-  padding: 24px;
+  padding: 32px; /* Increased from 24px for more breathing room */
   border-radius: var(--radius);
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
   display: grid;
-  gap: 12px;
+  gap: 16px; /* Increased from 12px */
   grid-template-columns: 2fr 1fr;
   align-items: center;
   position: relative;
@@ -143,9 +146,9 @@ main {
 
 .card-grid {
   display: grid;
-  gap: 12px;
+  gap: 16px; /* Increased from 12px */
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  margin: 16px 0;
+  margin: 0; /* Removed margin, using gap from main instead */
 }
 
 .card {
@@ -153,17 +156,17 @@ main {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 24px; /* Increased from 20px for more breathing room */
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
   position: relative;
-  overflow: hidden;
+  overflow: hidden; /* Prevents child elements from bleeding out */
   transition: all 0.3s ease;
 }
 
 .card:hover {
   transform: scale(1.02);
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25); /* Reduced from 0.4 */
 }
 
 .card-title {
@@ -179,7 +182,7 @@ main {
 }
 
 .list-block {
-  margin: 18px 0;
+  margin: 0; /* Removed, using gap from main instead */
 }
 
 .block-header {
@@ -187,17 +190,17 @@ main {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 8px;
+  margin-bottom: 12px; /* Increased from 8px */
 }
 
 .pill-list {
   display: flex;
-  gap: 8px;
+  gap: 12px; /* Increased from 8px */
   flex-wrap: wrap;
 }
 
 .pill {
-  padding: 10px 14px;
+  padding: 12px 16px; /* Increased from 10px 14px */
   background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -206,6 +209,7 @@ main {
   font-weight: 600;
   color: #ffffff;
   transition: all 0.3s ease;
+  overflow: hidden; /* Prevent overflow */
 }
 
 .pill:hover {
@@ -214,14 +218,14 @@ main {
 
 .activity-list {
   display: grid;
-  gap: 8px;
+  gap: 12px; /* Increased from 8px */
 }
 
 .activity-item {
   background: var(--surface);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  padding: 14px;
+  padding: 16px; /* Increased from 14px */
   border-radius: 16px;
   border: 1px solid var(--border-color);
   display: flex;
@@ -230,6 +234,7 @@ main {
   box-shadow: var(--shadow);
   color: #ffffff;
   transition: all 0.3s ease;
+  overflow: hidden; /* Prevent content overflow */
 }
 
 .activity-item:hover {
@@ -240,8 +245,9 @@ main {
 .section-header {
   display: flex;
   justify-content: space-between;
-  gap: 12px;
+  gap: 16px; /* Increased from 12px */
   align-items: center;
+  margin-bottom: 8px; /* Added margin to separate from content */
 }
 
 .chip {
@@ -271,7 +277,7 @@ main {
   border-radius: var(--radius);
   overflow: hidden;
   background: #0f172a;
-  margin: 14px 0;
+  margin: 0; /* Removed, using gap from main instead */
   min-height: 260px;
 }
 
@@ -339,7 +345,7 @@ main {
 .controls {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
-  gap: 8px;
+  gap: 12px; /* Increased from 8px */
 }
 
 .btn {
@@ -360,11 +366,11 @@ main {
 .btn.primary {
   background: #ffffff;
   color: #000000;
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2); /* Reduced from 0.3 */
 }
 
 .btn.primary:hover {
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.3); /* Reduced from 0.5 */
 }
 
 .btn.secondary {
@@ -412,11 +418,11 @@ main {
 
 .log-card .stack {
   display: grid;
-  gap: 8px;
+  gap: 12px; /* Increased from 8px */
 }
 
 .log-item {
-  padding: 14px;
+  padding: 16px; /* Increased from 14px */
   border-radius: 16px;
   background: var(--surface);
   backdrop-filter: blur(20px);
@@ -424,6 +430,7 @@ main {
   border: 1px solid var(--border-color);
   color: #ffffff;
   transition: all 0.3s ease;
+  overflow: hidden; /* Prevent overflow */
 }
 
 .log-item:hover {
@@ -458,11 +465,11 @@ main {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 24px; /* Increased from 20px */
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
   display: grid;
-  gap: 14px;
+  gap: 16px; /* Increased from 14px */
   position: relative;
   overflow: hidden;
 }
@@ -508,7 +515,7 @@ main {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 24px; /* Increased from 20px */
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
   position: relative;
@@ -517,7 +524,7 @@ main {
 
 .form-grid {
   display: grid;
-  gap: 10px;
+  gap: 12px; /* Increased from 10px */
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
 }
 
@@ -589,13 +596,13 @@ input::placeholder {
   justify-content: center;
   flex-shrink: 0;
   transition: all 0.3s ease;
-  box-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.2); /* Reduced from 0.3 */
 }
 
 .delete-btn:hover {
   background: #b91c1c;
   transform: scale(1.1);
-  box-shadow: 0 0 15px rgba(220, 38, 38, 0.5);
+  box-shadow: 0 0 15px rgba(220, 38, 38, 0.3); /* Reduced from 0.5 */
 }
 
 .delete-btn svg {
@@ -667,13 +674,13 @@ input::placeholder {
 .nutrition-progress-bars {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px; /* Increased from 16px */
 }
 
 .progress-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px; /* Increased from 6px */
 }
 
 .progress-header {
@@ -696,22 +703,22 @@ input::placeholder {
   background: #ffffff;
   border-radius: 999px;
   transition: width 0.3s ease;
-  box-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3); /* Reduced from 0.5 */
 }
 
 .progress-fill.protein {
   background: #22d3ee;
-  box-shadow: 0 0 10px rgba(34, 211, 238, 0.5);
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.3); /* Reduced from 0.5 */
 }
 
 .progress-fill.fat {
   background: #fb923c;
-  box-shadow: 0 0 10px rgba(251, 146, 60, 0.5);
+  box-shadow: 0 0 10px rgba(251, 146, 60, 0.3); /* Reduced from 0.5 */
 }
 
 .progress-fill.carbs {
   background: #10b981;
-  box-shadow: 0 0 10px rgba(16, 185, 129, 0.5);
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); /* Reduced from 0.5 */
 }
 
 .bottom-nav {
@@ -725,8 +732,9 @@ input::placeholder {
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   color: white;
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  display: flex; /* Changed from grid to flex for better control */
+  justify-content: space-between; /* Ensure even spacing */
+  align-items: center;
   gap: 4px;
   padding: 8px;
   border-radius: 16px;
@@ -738,13 +746,18 @@ input::placeholder {
   background: transparent;
   color: var(--nav-inactive);
   border: none;
-  padding: 12px 8px;
+  padding: 10px 6px; /* Reduced horizontal padding for tighter fit */
   font-weight: 700;
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 14px;
+  font-size: 13px; /* Slightly reduced from 14px */
   min-height: var(--touch-target-height);
+  flex: 1; /* Allow buttons to grow evenly */
+  min-width: 0; /* Critical: allows text truncation */
+  overflow: hidden; /* Prevent overflow */
+  text-overflow: ellipsis; /* Add ellipsis for long text */
+  white-space: nowrap; /* Prevent text wrapping */
 }
 
 .nav-btn:hover {
@@ -754,11 +767,11 @@ input::placeholder {
 .nav-btn.active {
   background: #ffffff;
   color: #000000;
-  box-shadow: 0 0 15px rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 15px rgba(255, 255, 255, 0.2); /* Reduced from 0.3 */
 }
 
 .nav-btn.active:hover {
-  box-shadow: 0 0 20px rgba(255, 255, 255, 0.4);
+  box-shadow: 0 0 20px rgba(255, 255, 255, 0.25); /* Reduced from 0.4 */
 }
 
 /* Global heading and text styles */
@@ -789,9 +802,9 @@ p {
 /* Quick actions on hero card */
 .quick-actions {
   display: flex;
-  gap: 8px;
+  gap: 12px; /* Increased from 8px */
   flex-wrap: wrap;
-  margin-top: 12px;
+  margin-top: 16px; /* Increased from 12px */
 }
 
 /* Section header styling */
@@ -825,12 +838,12 @@ p {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   border-radius: var(--radius);
-  padding: 20px;
+  padding: 24px; /* Increased from 20px */
   border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
   position: relative;
   overflow: hidden;
-  margin: 16px 0;
+  margin: 0; /* Removed, using gap from main instead */
 }
 
 @media (max-width: 720px) {
@@ -850,11 +863,29 @@ p {
   .bottom-nav {
     width: calc(100% - 32px);
     bottom: 16px;
+    gap: 2px; /* Reduced from 4px on mobile */
+    padding: 6px; /* Reduced from 8px */
+  }
+  .nav-btn {
+    font-size: 11px; /* Reduced from 13px for mobile */
+    padding: 10px 4px; /* Even tighter horizontal padding */
   }
   main {
     padding-bottom: var(--nav-safe-area-mobile);
   }
   .card-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 400px) {
+  .bottom-nav {
+    width: calc(100% - 16px); /* Even less margin on very small screens */
+    padding: 6px 4px; /* Tighter horizontal padding */
+  }
+  .nav-btn {
+    font-size: 10px; /* Further reduced for very small screens */
+    padding: 10px 2px; /* Minimal horizontal padding */
+    font-weight: 600; /* Slightly reduced weight */
   }
 }
