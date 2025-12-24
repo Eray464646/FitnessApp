@@ -290,17 +290,55 @@
           <div class="card form-card">
             <div class="block-header">
               <h3>KI-Einstellungen</h3>
-              <span class="muted">Food Scanner Status</span>
+              <span class="muted">API Key (Gemini)</span>
             </div>
-            <p class="muted small" style="padding: 12px; background: #dbeafe; border-radius: 8px; color: #1e3a8a;">
-              <strong>Sicherheitshinweis:</strong> Die KI-Bilderkennung verwendet einen Server-seitigen API-Schlüssel. Deine Bilder werden sicher verarbeitet und der API-Schlüssel ist niemals im Browser sichtbar.
+            
+            <p class="muted small" style="padding: 12px; background: #fef3c7; border-radius: 8px; color: #92400e; margin-bottom: 16px;">
+              <strong>⚠️ Sicherheitshinweis:</strong> Der API-Schlüssel wird NUR in diesem Tab gespeichert und geht nach Seiten-Reload verloren. Er wird NIEMALS an unseren Server gesendet.
             </p>
             
-            <div id="api-status-container" style="margin-top: 16px;">
+            <div id="api-status-container" style="margin-bottom: 16px;">
               <div id="api-status-display" style="padding: 12px; border-radius: 8px; background: #f1f5f9; margin-bottom: 12px;">
-                <strong>Status:</strong> <span id="api-status-text">Wird überprüft...</span><br/>
-                <span id="api-status-details" class="muted small"></span>
+                <strong>Status:</strong> <span id="api-status-text">Nicht gesetzt</span><br/>
+                <span id="api-status-details" class="muted small">Bitte gib deinen Gemini API Key ein</span>
               </div>
+            </div>
+            
+            <div style="margin-bottom: 16px;">
+              <label style="display: block; margin-bottom: 8px; font-weight: 500;">
+                API Key eingeben
+              </label>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input 
+                  type="password" 
+                  id="api-key-input" 
+                  placeholder="AIza..." 
+                  style="flex: 1; padding: 8px 12px; border: 1px solid #cbd5e1; border-radius: 6px; font-family: monospace;"
+                />
+                <button 
+                  id="toggle-api-key-visibility" 
+                  class="tiny-btn" 
+                  style="padding: 8px 12px; cursor: pointer;"
+                  title="Anzeigen/Verbergen"
+                >
+                  👁️
+                </button>
+              </div>
+              <p class="muted small" style="margin-top: 4px;">
+                Der Key wird nicht gespeichert und geht nach Seiten-Reload verloren.
+              </p>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+              <button class="btn primary" id="set-api-key" style="flex: 1; min-width: 150px;">
+                ✅ Key setzen / Speichern (nur für diese Sitzung)
+              </button>
+              <button class="btn secondary" id="delete-api-key" style="flex: 1; min-width: 150px;">
+                🗑️ Key löschen
+              </button>
+            </div>
+            
+            <div style="border-top: 1px solid #e2e8f0; padding-top: 16px; margin-top: 16px;">
               <button class="btn secondary" id="test-food-scanner" style="width: 100%;">
                 🔍 Food Scanner testen
               </button>
@@ -309,10 +347,13 @@
               </p>
             </div>
             
-            <p class="muted small" style="margin-top: 16px;">
+            <p class="muted small" style="margin-top: 16px; padding-top: 16px; border-top: 1px solid #e2e8f0;">
               <strong>Setup-Anleitung:</strong><br/>
-              Setze die Environment Variable <code>GEMINI_API_KEY</code> in deiner Server-Umgebung.<br/>
-              API-Schlüssel erhältlich auf: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>
+              1. Besuche <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a><br/>
+              2. Erstelle einen neuen API Key<br/>
+              3. Kopiere den Key und füge ihn oben ein<br/>
+              4. Klicke auf "Key setzen"<br/>
+              5. Teste die Verbindung mit dem Test-Button
             </p>
           </div>
         </section>
