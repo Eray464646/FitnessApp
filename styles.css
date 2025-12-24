@@ -11,6 +11,8 @@
   --border-color: rgba(55, 65, 81, 0.5); /* border-gray-700/50 */
   --nav-safe-area: 120px; /* Safe area padding for floating navigation */
   --nav-safe-area-mobile: 100px; /* Safe area padding for mobile */
+  --nav-background: rgba(17, 24, 39, 0.9); /* Navigation background */
+  --nav-inactive: #6b7280; /* Inactive navigation button color */
 }
 
 * {
@@ -501,7 +503,15 @@ main {
 }
 
 .form-card {
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-radius: var(--radius);
+  padding: 20px;
+  border: 1px solid var(--border-color);
   box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
 }
 
 .form-grid {
@@ -709,7 +719,7 @@ input::placeholder {
   transform: translateX(-50%);
   width: calc(100% - 32px);
   max-width: 920px;
-  background: rgba(17, 24, 39, 0.9);
+  background: var(--nav-background);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   color: white;
@@ -724,7 +734,7 @@ input::placeholder {
 
 .nav-btn {
   background: transparent;
-  color: #6b7280;
+  color: var(--nav-inactive);
   border: none;
   padding: 12px 8px;
   font-weight: 700;
@@ -805,19 +815,6 @@ p {
   background: rgba(31, 41, 55, 0.3);
   border-radius: 12px;
   border: 1px solid var(--border-color);
-}
-
-/* Form card */
-.form-card {
-  background: var(--surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-radius: var(--radius);
-  padding: 20px;
-  border: 1px solid var(--border-color);
-  box-shadow: var(--shadow);
-  position: relative;
-  overflow: hidden;
 }
 
 /* Log card */
