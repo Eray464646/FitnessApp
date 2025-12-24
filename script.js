@@ -817,46 +817,209 @@ function replaySet(setIndex) {
   const container = document.getElementById("replay-log");
   clearInterval(replayTimer);
   
-  let idx = 0;
   const frames = set.frames;
   
-  container.innerHTML = `
-    <div class="log-item">
-      <strong>Set Replay: ${escapeHTML(set.exercise)}</strong><br/>
-      <span class="muted small">Starte Replay von ${frames.length} Frames...</span>
-    </div>
-  `;
+  // Replay controller state
+  let currentFrameIndex = 0;
+  let isPlaying = false;
+  let playbackRate = 1.0;
+  let animationFrameId = null;
+  let lastFrameTime = 0;
   
-  replayTimer = setInterval(() => {
-    const frame = frames[idx];
+  // Calculate frame duration based on timestamps
+  const frameDurations = [];
+  for (let i = 1; i < frames.length; i++) {
+    frameDurations.push(frames[i].timestamp - frames[i - 1].timestamp);
+  }
+  const avgFrameDuration = frameDurations.length > 0 
+    ? frameDurations.reduce((a, b) => a + b, 0) / frameDurations.length 
+    : 400; // fallback to 400ms
+  
+  // Render the replay UI with controls
+  function renderReplayUI() {
+    const frame = frames[currentFrameIndex];
+    const progress = (currentFrameIndex / (frames.length - 1)) * 100;
+    
     container.innerHTML = `
-      <div class="log-item">
-        <strong>Set Replay: ${escapeHTML(set.exercise)} - Frame ${idx + 1}/${frames.length}</strong><br/>
-        <span class="muted small">
-          Qualität: ${Math.round(frame.postureScore * 100)}% · 
-          Keypoints: ${frame.keypointsTracked} · 
-          ${frame.stability}
-        </span>
+      <div class="log-item" style="padding: 16px;">
+        <strong>Set Replay: ${escapeHTML(set.exercise)}</strong><br/>
+        <span class="muted small">Frame ${currentFrameIndex + 1} / ${frames.length}</span>
+        
+        <!-- Skeleton Visualization -->
         <div class="skeleton-viz">${renderSkeletonViz(frame.keypoints)}</div>
-        <div class="progress-bar" style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 8px;">
-          <div style="width: ${(idx / frames.length) * 100}%; height: 100%; background: linear-gradient(135deg, #6366f1, #22d3ee); border-radius: 2px;"></div>
+        
+        <!-- Frame Info -->
+        <div style="margin-top: 8px;">
+          <span class="muted small">
+            Qualität: ${Math.round(frame.postureScore * 100)}% · 
+            Keypoints: ${frame.keypointsTracked} · 
+            ${frame.stability}
+          </span>
+        </div>
+        
+        <!-- Timeline Scrubber -->
+        <div style="margin-top: 12px;">
+          <input 
+            type="range" 
+            id="replay-scrubber" 
+            min="0" 
+            max="${frames.length - 1}" 
+            value="${currentFrameIndex}" 
+            style="width: 100%; cursor: pointer;"
+          />
+          <div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 4px;">
+            <div style="width: ${progress}%; height: 100%; background: linear-gradient(135deg, #6366f1, #22d3ee); border-radius: 2px; transition: width 0.1s;"></div>
+          </div>
+        </div>
+        
+        <!-- Playback Controls -->
+        <div style="margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center;">
+          <button class="tiny-btn" id="replay-step-back" style="padding: 8px 12px;">⏮️ -1</button>
+          <button class="tiny-btn" id="replay-play-pause" style="padding: 8px 16px; min-width: 80px;">
+            ${isPlaying ? '⏸️ Pause' : '▶️ Play'}
+          </button>
+          <button class="tiny-btn" id="replay-step-forward" style="padding: 8px 12px;">+1 ⏭️</button>
+          
+          <select id="replay-speed" style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; cursor: pointer;">
+            <option value="0.5" ${playbackRate === 0.5 ? 'selected' : ''}>0.5x</option>
+            <option value="1" ${playbackRate === 1.0 ? 'selected' : ''}>1x</option>
+            <option value="1.5" ${playbackRate === 1.5 ? 'selected' : ''}>1.5x</option>
+            <option value="2" ${playbackRate === 2.0 ? 'selected' : ''}>2x</option>
+          </select>
+          
+          <button class="tiny-btn" id="replay-close" style="padding: 8px 12px; background: #ef4444; color: white;">✕ Schließen</button>
         </div>
       </div>
     `;
-    idx += 1;
-    if (idx >= frames.length) {
-      clearInterval(replayTimer);
-      setTimeout(() => {
+    
+    // Attach event listeners
+    attachReplayControls();
+  }
+  
+  // Attach event listeners to controls
+  function attachReplayControls() {
+    // Scrubber seek
+    const scrubber = document.getElementById('replay-scrubber');
+    if (scrubber) {
+      scrubber.addEventListener('input', (e) => {
+        currentFrameIndex = parseInt(e.target.value);
+        renderReplayUI();
+      });
+      
+      // Mobile-friendly touch events
+      scrubber.addEventListener('touchstart', () => {
+        if (isPlaying) togglePlayPause();
+      });
+    }
+    
+    // Play/Pause
+    const playPauseBtn = document.getElementById('replay-play-pause');
+    if (playPauseBtn) {
+      playPauseBtn.addEventListener('click', togglePlayPause);
+    }
+    
+    // Step backward
+    const stepBackBtn = document.getElementById('replay-step-back');
+    if (stepBackBtn) {
+      stepBackBtn.addEventListener('click', () => {
+        if (currentFrameIndex > 0) {
+          currentFrameIndex--;
+          renderReplayUI();
+        }
+      });
+    }
+    
+    // Step forward
+    const stepForwardBtn = document.getElementById('replay-step-forward');
+    if (stepForwardBtn) {
+      stepForwardBtn.addEventListener('click', () => {
+        if (currentFrameIndex < frames.length - 1) {
+          currentFrameIndex++;
+          renderReplayUI();
+        }
+      });
+    }
+    
+    // Speed selector
+    const speedSelector = document.getElementById('replay-speed');
+    if (speedSelector) {
+      speedSelector.addEventListener('change', (e) => {
+        playbackRate = parseFloat(e.target.value);
+      });
+    }
+    
+    // Close button
+    const closeBtn = document.getElementById('replay-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        stopReplay();
         container.innerHTML = `
           <div class="log-item">
-            <strong>Replay abgeschlossen</strong><br/>
-            <span class="muted small">Satz: ${escapeHTML(set.exercise)} · ${set.reps} Wdh · Technik ${set.quality}%</span>
-            <button class="tiny-btn" onclick="replaySet(${setIndex})">🔄 Erneut abspielen</button>
+            <span class="muted">Replay geschlossen</span>
           </div>
         `;
-      }, 1000);
+      });
     }
-  }, 400);
+  }
+  
+  // Toggle play/pause
+  function togglePlayPause() {
+    isPlaying = !isPlaying;
+    if (isPlaying) {
+      startPlayback();
+    } else {
+      stopPlayback();
+    }
+    renderReplayUI();
+  }
+  
+  // Start playback animation
+  function startPlayback() {
+    lastFrameTime = performance.now();
+    
+    function animate(currentTime) {
+      if (!isPlaying) return;
+      
+      const elapsed = currentTime - lastFrameTime;
+      const frameDuration = avgFrameDuration / playbackRate;
+      
+      if (elapsed >= frameDuration) {
+        lastFrameTime = currentTime;
+        currentFrameIndex++;
+        
+        if (currentFrameIndex >= frames.length) {
+          // Reached the end
+          currentFrameIndex = frames.length - 1;
+          isPlaying = false;
+          renderReplayUI();
+          return;
+        }
+        
+        renderReplayUI();
+      }
+      
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    animationFrameId = requestAnimationFrame(animate);
+  }
+  
+  // Stop playback animation
+  function stopPlayback() {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  }
+  
+  // Stop replay completely
+  function stopReplay() {
+    isPlaying = false;
+    stopPlayback();
+  }
+  
+  // Initial render
+  renderReplayUI();
 }
 
 function renderSkeletonViz(keypoints) {
