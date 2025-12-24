@@ -1539,6 +1539,69 @@ function hydrateProfile() {
   document.getElementById("wearable-toggle").checked = !!state.profile.wearable;
 }
 
+// API Status checking functions
+async function checkFoodScannerHealth() {
+  const statusText = document.getElementById("api-status-text");
+  const statusDetails = document.getElementById("api-status-details");
+  const statusDisplay = document.getElementById("api-status-display");
+  const lastTestEl = document.getElementById("api-last-test");
+  
+  // Update UI to show checking state
+  statusText.textContent = "Wird überprüft...";
+  statusDetails.textContent = "";
+  statusDisplay.style.background = "#f1f5f9";
+  
+  try {
+    const response = await fetch('/api/food-scan-health', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Health check endpoint nicht erreichbar');
+    }
+    
+    const result = await response.json();
+    
+    // Update last test time
+    const now = new Date();
+    lastTestEl.textContent = now.toLocaleString('de-DE', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    // Update UI based on status
+    if (result.status === 'ok') {
+      statusText.textContent = "✅ " + result.message;
+      statusDetails.textContent = result.details;
+      statusDisplay.style.background = "#dcfce7"; // green
+      statusDisplay.style.color = "#166534";
+    } else if (result.status === 'warning') {
+      statusText.textContent = "⚠️ " + result.message;
+      statusDetails.textContent = result.details;
+      statusDisplay.style.background = "#fef3c7"; // yellow
+      statusDisplay.style.color = "#92400e";
+    } else {
+      statusText.textContent = "❌ " + result.message;
+      statusDetails.textContent = result.details;
+      statusDisplay.style.background = "#fee2e2"; // red
+      statusDisplay.style.color = "#991b1b";
+    }
+    
+  } catch (error) {
+    console.error('Health check failed:', error);
+    statusText.textContent = "❌ Verbindungsfehler";
+    statusDetails.textContent = error.message || 'Kann Server nicht erreichen';
+    statusDisplay.style.background = "#fee2e2";
+    statusDisplay.style.color = "#991b1b";
+  }
+}
+
 function bindProfile() {
   document.getElementById("camera-consent").addEventListener("change", (e) => {
     state.profile.cameraConsent = e.target.checked;
@@ -1570,6 +1633,7 @@ document.getElementById("camera-facing").addEventListener("change", async (e) =>
   }
 });
 document.getElementById("play-replay").addEventListener("click", playReplay);
+document.getElementById("test-food-scanner").addEventListener("click", checkFoodScannerHealth);
 
 hydrateProfile();
 bindProfile();
@@ -1579,6 +1643,9 @@ renderSets();
 renderFoodLog();
 renderDashboard();
 updateReplayLog();
+
+// Check API status on page load
+checkFoodScannerHealth();
 
 window.addEventListener("beforeunload", () => {
   if (!cameraStream) return;

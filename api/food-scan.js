@@ -79,8 +79,8 @@ module.exports = async (req, res) => {
               text: "Analysiere dieses Bild und identifiziere alle Lebensmittel. Gib die Antwort als JSON zurück mit folgendem Format: {\"detected\": true/false, \"items\": [\"item1\", \"item2\"], \"label\": \"Hauptgericht Name\", \"confidence\": 0-100, \"calories\": Zahl, \"protein\": Zahl, \"carbs\": Zahl, \"fat\": Zahl, \"reasoning\": \"kurze Erklärung\"}. Wenn kein Essen erkennbar ist, setze detected auf false und gib eine hilfreiche Nachricht im reasoning-Feld. Schätze realistische Nährwerte für eine typische Portion. Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text oder Markdown-Formatierung."
             },
             {
-              inline_data: {
-                mime_type: mimeType,
+              inlineData: {
+                mimeType: mimeType,
                 data: base64Data
               }
             }
@@ -97,20 +97,33 @@ module.exports = async (req, res) => {
 
     if (!geminiResponse.ok) {
       const errorData = await geminiResponse.json().catch(() => ({}));
-      console.error('Gemini API error:', geminiResponse.status, errorData);
+      console.error('Gemini API error:', {
+        status: geminiResponse.status,
+        statusText: geminiResponse.statusText,
+        error: errorData
+      });
       
-      // Handle specific error cases
+      // Handle specific error cases with detailed messages
       let errorMessage = 'API request failed';
+      let userMessage = 'Fehler bei der Bilderkennung';
+      
       if (geminiResponse.status === 400) {
-        errorMessage = 'Invalid API request';
+        errorMessage = 'Invalid API request - check payload format';
+        userMessage = 'Ungültiges Bildformat';
       } else if (geminiResponse.status === 429) {
         errorMessage = 'API rate limit exceeded';
+        userMessage = 'API-Limit erreicht. Bitte später erneut versuchen.';
       } else if (geminiResponse.status === 403) {
-        errorMessage = 'API authentication failed';
+        errorMessage = 'API authentication failed - check API key';
+        userMessage = 'API-Authentifizierung fehlgeschlagen';
+      } else if (geminiResponse.status === 404) {
+        errorMessage = 'API endpoint not found - check model name';
+        userMessage = 'API-Endpunkt nicht gefunden';
       }
       
       return res.status(500).json({ 
         error: errorMessage,
+        message: userMessage,
         detected: false,
         apiStatus: geminiResponse.status
       });
@@ -157,9 +170,13 @@ module.exports = async (req, res) => {
 
     // Apply confidence gating using defined threshold
     if (result.detected && result.confidence < CONFIDENCE_THRESHOLD) {
-      console.log(`Low confidence (${result.confidence}%), marking as not detected`);
+      console.log(`Low confidence (${result.confidence}%), marking as uncertain`);
       result.detected = false;
-      result.message = 'Low confidence detection - please try a clearer photo or confirm manually';
+      result.message = 'Unsicher – bitte bestätigen oder klareres Foto verwenden';
+      result.lowConfidence = true;
+    } else if (!result.detected && !result.message) {
+      // Ensure there's a message when no food is detected
+      result.message = result.reasoning || 'Kein Essen erkannt';
     }
 
     // Ensure all required fields are present
