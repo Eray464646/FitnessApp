@@ -670,7 +670,7 @@ input::placeholder {
 }
 
 .progress-bar {
-  height: 6px;
+  height: 8px;
   background: rgba(55, 65, 81, 0.5);
   border-radius: 999px;
   overflow: hidden;
@@ -729,7 +729,7 @@ input::placeholder {
   border-radius: 12px;
   cursor: pointer;
   transition: all 0.3s ease;
-  font-size: 13px;
+  font-size: 14px;
   min-height: 48px;
 }
 
@@ -847,7 +847,7 @@ p {
     grid-template-columns: 1fr;
   }
   .bottom-nav {
-    width: calc(100% - 24px);
+    width: calc(100% - 32px);
     bottom: 16px;
   }
   main {
