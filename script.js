@@ -1721,16 +1721,38 @@ async function detectFoodWithAI(imageDataUrl) {
     const totals = result.totals || {};
     const firstItem = result.items && result.items[0] || {};
     
+    // Calculate average confidence from all items
+    const avgConfidence = result.items && result.items.length > 0
+      ? result.items.reduce((sum, item) => sum + (item.confidence || 70), 0) / result.items.length
+      : firstItem.confidence || 70;
+    
+    // Apply confidence threshold for food names (80%)
+    // If confidence is high enough, use actual food names; otherwise use generic "Essen"
+    let foodLabel;
+    let itemLabels = [];
+    
+    if (avgConfidence >= 80 && result.items && result.items.length > 0) {
+      // High confidence - use actual food names
+      // Filter out empty/undefined labels
+      itemLabels = result.items
+        .map(i => i.label)
+        .filter(label => label && typeof label === 'string' && label.trim().length > 0);
+      
+      foodLabel = itemLabels.length > 0 ? itemLabels.join(', ') : 'Essen';
+    } else {
+      // Low confidence - use generic name
+      foodLabel = 'Essen';
+      itemLabels = ['Essen'];
+    }
+    
     return {
-      label: result.items && result.items.length > 0 
-        ? result.items.map(i => i.label).join(', ')
-        : 'Unbekanntes Lebensmittel',
+      label: foodLabel,
       calories: Math.round(totals.calories || firstItem.calories || 0),
       protein: Math.round(totals.protein || firstItem.macros?.protein || 0),
       carbs: Math.round(totals.carbs || firstItem.macros?.carbs || 0),
       fat: Math.round(totals.fat || firstItem.macros?.fat || 0),
-      confidence: Math.round(firstItem.confidence || 70),
-      items: result.items ? result.items.map(i => i.label) : [],
+      confidence: Math.round(avgConfidence),
+      items: itemLabels,
       reasoning: result.notes || result.message
     };
     
@@ -2102,7 +2124,7 @@ function saveFoodEntry() {
   updateNutritionProgress();
 }
 
-function generatePlan(evt) {
+async function generatePlan(evt) {
   evt?.preventDefault();
   
   // Read all form values
@@ -2115,13 +2137,134 @@ function generatePlan(evt) {
   const goal = document.getElementById("goal").value;
   const level = document.getElementById("level").value;
   
+  // Show loading state
+  setAIStatus("KI generiert Trainingsplan...", "info");
+  
+  try {
+    // Call AI backend to generate training plan
+    const response = await fetch(`${VERCEL_BACKEND_URL}/api/training-plan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        age,
+        gender,
+        height,
+        weight,
+        level,
+        goal,
+        frequency,
+        equipment
+      })
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Backend-Fehler: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    if (!result.success || !result.plan || !result.plan.days) {
+      throw new Error('Ungültige Antwort vom Backend');
+    }
+    
+    // Save AI-generated plan with all metadata
+    state.plan = { 
+      age, 
+      gender, 
+      height, 
+      weight, 
+      equipment, 
+      frequency, 
+      goal, 
+      level, 
+      days: result.plan.days,
+      notes: result.plan.notes,
+      aiGenerated: true,
+      generatedAt: new Date().toISOString()
+    };
+    
+    persist();
+    renderPlan();
+    renderDashboard();
+    
+    // Show success feedback
+    setAIStatus("KI-Plan erstellt", "info");
+    setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
+    
+  } catch (error) {
+    console.error('Training plan generation error:', error);
+    setAIStatus("Fehler - nutze Fallback", "warn");
+    
+    // Fallback: Generate simple rule-based plan if AI fails
+    const days = generateFallbackPlan(age, gender, height, weight, equipment, frequency, goal, level);
+    
+    state.plan = { 
+      age, 
+      gender, 
+      height, 
+      weight, 
+      equipment, 
+      frequency, 
+      goal, 
+      level, 
+      days,
+      aiGenerated: false,
+      fallback: true
+    };
+    
+    persist();
+    renderPlan();
+    renderDashboard();
+    
+    setTimeout(() => setAIStatus("KI bereit", "info"), 3000);
+  }
+}
+
+// Fallback function to generate a simple rule-based plan if AI fails
+function generateFallbackPlan(age, gender, height, weight, equipment, frequency, goal, level) {
   // Determine exercises based on equipment
   const baseExercises =
     equipment === "studio"
-      ? ["Kniebeugen", "Bankdrücken", "Kreuzheben", "Klimmzüge", "Rudern Kabel", "Plank"]
+      ? [
+          { name: "Kniebeugen", sets: 4, reps: "8-10", rest: 90 },
+          { name: "Bankdrücken", sets: 4, reps: "8-10", rest: 90 },
+          { name: "Kreuzheben", sets: 3, reps: "6-8", rest: 120 },
+          { name: "Klimmzüge", sets: 3, reps: "8-12", rest: 90 },
+          { name: "Rudern Kabel", sets: 3, reps: "10-12", rest: 60 },
+          { name: "Plank", sets: 3, reps: "45-60s", rest: 60 }
+        ]
       : equipment === "kurzhanteln"
-        ? ["Goblet Squat", "Kurzhantel-Bankdrücken", "Einarm-Rudern", "Rumänisches Kreuzheben", "Plank"]
-        : ["Kniebeugen", "Liegestütze", "Hip Thrust", "Rows mit Band", "Split Squats", "Plank"];
+        ? [
+            { name: "Goblet Squat", sets: 4, reps: "10-12", rest: 75 },
+            { name: "Kurzhantel-Bankdrücken", sets: 4, reps: "8-10", rest: 90 },
+            { name: "Einarm-Rudern", sets: 3, reps: "10-12", rest: 60 },
+            { name: "Rumänisches Kreuzheben", sets: 3, reps: "10-12", rest: 75 },
+            { name: "Schulterdrücken", sets: 3, reps: "8-10", rest: 75 },
+            { name: "Plank", sets: 3, reps: "45-60s", rest: 60 }
+          ]
+        : [
+            { name: "Kniebeugen", sets: 3, reps: "12-15", rest: 60 },
+            { name: "Liegestütze", sets: 3, reps: "10-15", rest: 60 },
+            { name: "Hip Thrust", sets: 4, reps: "12-15", rest: 60 },
+            { name: "Ausfallschritte", sets: 3, reps: "10-12", rest: 60 },
+            { name: "Plank", sets: 3, reps: "30-45s", rest: 45 },
+            { name: "Mountain Climbers", sets: 3, reps: "20-30", rest: 45 }
+          ];
+
+  // Adjust sets/reps based on level
+  if (level === "anfänger") {
+    baseExercises.forEach(ex => {
+      ex.sets = Math.max(2, ex.sets - 1);
+      ex.rest = Math.min(120, ex.rest + 30);
+    });
+  } else if (level === "fortgeschritten") {
+    baseExercises.forEach(ex => {
+      ex.sets = Math.min(5, ex.sets + 1);
+      ex.rest = Math.max(45, ex.rest - 15);
+    });
+  }
 
   // Generate days based on frequency
   const days = Array.from({ length: Math.max(2, Math.min(6, frequency)) }).map((_, idx) => {
@@ -2151,41 +2294,64 @@ function generatePlan(evt) {
       exercises
     };
   });
-
-  // Save all form values to plan state
-  state.plan = { 
-    age, 
-    gender, 
-    height, 
-    weight, 
-    equipment, 
-    frequency, 
-    goal, 
-    level, 
-    days 
-  };
   
-  persist();
-  renderPlan();
-  renderDashboard();
-  
-  // Show success feedback
-  setAIStatus("Plan aktualisiert", "info");
-  setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
+  return days;
 }
 
 function renderPlan() {
   const wrap = document.getElementById("plan-days");
+  
+  // Check if exercises are in new format (objects with sets/reps) or old format (just strings)
+  const isNewFormat = state.plan.days.length > 0 && 
+                      state.plan.days[0].exercises.length > 0 && 
+                      typeof state.plan.days[0].exercises[0] === 'object';
+  
   wrap.innerHTML = state.plan.days
     .map(
-      (d) => `
+      (d) => {
+        let exercisesHTML;
+        
+        if (isNewFormat) {
+          // New format: exercises are objects with sets, reps, rest
+          exercisesHTML = d.exercises.map(ex => {
+            const restInfo = ex.rest ? ` · Pause: ${ex.rest}s` : '';
+            return `<div class="exercise-detail">
+              <strong>${escapeHTML(ex.name)}</strong> – ${ex.sets}×${ex.reps}${restInfo}
+            </div>`;
+          }).join('');
+        } else {
+          // Old format: exercises are just strings
+          exercisesHTML = `<span class="muted small">${d.exercises.map(escapeHTML).join(" · ")}</span>`;
+        }
+        
+        return `
     <div class="log-item">
       <strong>${escapeHTML(d.day)}</strong> – ${escapeHTML(d.focus)}<br/>
-      <span class="muted small">${d.exercises.map(escapeHTML).join(" · ")}</span>
-    </div>`
+      ${exercisesHTML}
+    </div>`;
+      }
     )
     .join("");
-  document.getElementById("plan-summary").textContent = `${state.plan.frequency || 3}x/Woche · ${state.plan.equipment}`;
+  
+  // Add notes if available
+  if (state.plan.notes) {
+    wrap.innerHTML += `
+      <div class="log-item" style="background: #fef3c7; border-left: 3px solid #f59e0b;">
+        <strong>💡 Hinweise</strong><br/>
+        <span class="muted small">${escapeHTML(state.plan.notes)}</span>
+      </div>
+    `;
+  }
+  
+  // Show if AI-generated or fallback
+  let summaryText = `${state.plan.frequency || 3}x/Woche · ${state.plan.equipment}`;
+  if (state.plan.aiGenerated) {
+    summaryText += ' · ✨ KI-generiert';
+  } else if (state.plan.fallback) {
+    summaryText += ' · 📋 Basis-Plan';
+  }
+  
+  document.getElementById("plan-summary").textContent = summaryText;
 }
 
 function hydratePlanForm() {
