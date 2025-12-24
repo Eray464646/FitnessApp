@@ -327,6 +327,12 @@ main {
   border: 1px solid #e2e8f0;
 }
 
+.swipeable {
+  touch-action: pan-y;
+  user-select: none;
+  transition: transform 0.3s ease;
+}
+
 .upload-card {
   background: var(--surface);
   border-radius: var(--radius);
