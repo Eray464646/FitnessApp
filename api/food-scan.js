@@ -2,6 +2,9 @@
 // This keeps API keys secure on the server side
 // Compatible with Vercel, Netlify, and similar platforms
 
+// Configuration constants
+const CONFIDENCE_THRESHOLD = 60;  // Minimum confidence percentage to accept detection
+
 module.exports = async (req, res) => {
   // Enable CORS for frontend requests
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -146,8 +149,7 @@ module.exports = async (req, res) => {
       }
     }
 
-    // Apply confidence gating
-    const CONFIDENCE_THRESHOLD = 60;
+    // Apply confidence gating using defined threshold
     if (result.detected && result.confidence < CONFIDENCE_THRESHOLD) {
       console.log(`Low confidence (${result.confidence}%), marking as not detected`);
       result.detected = false;

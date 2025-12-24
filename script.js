@@ -7,6 +7,23 @@ const MIN_KEYPOINT_VISIBILITY = 0.3; // Minimum visibility for drawing keypoints
 const STABLE_FRAMES_REQUIRED = 3;    // Number of consecutive stable frames needed
 const LOST_FRAMES_THRESHOLD = 3;     // Number of frames before person is considered lost
 
+// Rep counting constants
+const AUTO_SAVE_REP_COUNT = 12;      // Auto-save set after this many reps
+
+// Squat detection angles (in degrees)
+const SQUAT_DOWN_HIP_ANGLE = 100;    // Hip angle threshold for down position
+const SQUAT_DOWN_KNEE_ANGLE = 110;   // Knee angle threshold for down position
+const SQUAT_UP_HIP_ANGLE = 150;      // Hip angle threshold for up position
+const SQUAT_UP_KNEE_ANGLE = 150;     // Knee angle threshold for up position
+
+// Push-up detection angles (in degrees)
+const PUSHUP_DOWN_ELBOW_ANGLE = 90;  // Elbow angle threshold for down position
+const PUSHUP_UP_ELBOW_ANGLE = 160;   // Elbow angle threshold for up position
+
+// UI interaction constants
+const SWIPE_DELETE_THRESHOLD = 60;   // Swipe distance in pixels to trigger delete
+const MAX_SWIPE_DISTANCE = 100;      // Maximum swipe distance before clamping
+
 // COCO Pose keypoint definitions
 const COCO_KEYPOINTS = [
   { id: 0, name: "nose", baseX: 0.5, baseY: 0.15 },
@@ -434,17 +451,17 @@ function countSquatReps(landmarks) {
   // Calculate knee angle
   const kneeAngle = calculateAngle(leftHip, leftKnee, leftAnkle);
   
-  // Squat detection logic
-  // Down phase: hip angle < 100 and knee angle < 110
-  // Up phase: hip angle > 150 and knee angle > 150
+  // Squat detection logic using defined angle constants
+  // Down phase: hip angle < SQUAT_DOWN_HIP_ANGLE and knee angle < SQUAT_DOWN_KNEE_ANGLE
+  // Up phase: hip angle > SQUAT_UP_HIP_ANGLE and knee angle > SQUAT_UP_KNEE_ANGLE
   
-  if (motionTracker.squatPhase === "up" && hipAngle < 100 && kneeAngle < 110) {
+  if (motionTracker.squatPhase === "up" && hipAngle < SQUAT_DOWN_HIP_ANGLE && kneeAngle < SQUAT_DOWN_KNEE_ANGLE) {
     // Entering down phase
     motionTracker.squatPhase = "down";
     motionTracker.lastROM = hipAngle < 90 ? "voll" : "teilweise";
     document.getElementById("training-feedback").innerHTML =
       "<p class='title'>Abwärtsbewegung</p><p class='muted'>Gehe tiefer für volle ROM</p>";
-  } else if (motionTracker.squatPhase === "down" && hipAngle > 150 && kneeAngle > 150) {
+  } else if (motionTracker.squatPhase === "down" && hipAngle > SQUAT_UP_HIP_ANGLE && kneeAngle > SQUAT_UP_KNEE_ANGLE) {
     // Entering up phase - count rep
     motionTracker.squatPhase = "up";
     repCount++;
@@ -460,7 +477,7 @@ function countSquatReps(landmarks) {
     }
     
     // Auto-save at 12 reps
-    if (repCount >= 12) {
+    if (repCount >= AUTO_SAVE_REP_COUNT) {
       saveSet(true);
     }
   }
@@ -483,15 +500,15 @@ function countPushupReps(landmarks) {
   // Calculate elbow angle
   const elbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
   
-  // Push-up detection
-  // Down: elbow angle < 90
-  // Up: elbow angle > 160
+  // Push-up detection using defined angle constants
+  // Down: elbow angle < PUSHUP_DOWN_ELBOW_ANGLE
+  // Up: elbow angle > PUSHUP_UP_ELBOW_ANGLE
   
-  if (motionTracker.squatPhase === "up" && elbowAngle < 90) {
+  if (motionTracker.squatPhase === "up" && elbowAngle < PUSHUP_DOWN_ELBOW_ANGLE) {
     motionTracker.squatPhase = "down";
     document.getElementById("training-feedback").innerHTML =
       "<p class='title'>Abwärtsbewegung</p><p class='muted'>Halte den Rücken gerade</p>";
-  } else if (motionTracker.squatPhase === "down" && elbowAngle > 160) {
+  } else if (motionTracker.squatPhase === "down" && elbowAngle > PUSHUP_UP_ELBOW_ANGLE) {
     motionTracker.squatPhase = "up";
     repCount++;
     document.getElementById("rep-count").textContent = repCount;
@@ -500,7 +517,7 @@ function countPushupReps(landmarks) {
     
     motionTracker.lastQuality = 85 + Math.floor(Math.random() * 15);
     
-    if (repCount >= 12) {
+    if (repCount >= AUTO_SAVE_REP_COUNT) {
       saveSet(true);
     }
   }
@@ -539,7 +556,7 @@ function countGenericReps(landmarks) {
       document.getElementById("training-feedback").innerHTML =
         "<p class='title'>Wiederholung gezählt</p><p class='muted'>Weiter so!</p>";
       
-      if (repCount >= 12) {
+      if (repCount >= AUTO_SAVE_REP_COUNT) {
         saveSet(true);
       }
     }
@@ -566,9 +583,15 @@ function drawMediaPipeSkeleton(results) {
   ctx.lineCap = 'round';
   
   // Get MediaPipe POSE_CONNECTIONS from global scope
-  // If not available, log error and skip connection drawing
+  // If not available, log actionable error message and skip connection drawing
   if (!window.POSE_CONNECTIONS) {
-    console.error('MediaPipe POSE_CONNECTIONS not loaded. Skeleton connections will not be drawn.');
+    console.error(
+      'MediaPipe POSE_CONNECTIONS not loaded. Skeleton connections will not be drawn.\n' +
+      'Troubleshooting:\n' +
+      '1. Ensure the MediaPipe drawing utils script is loaded in index.html\n' +
+      '2. Check browser console for script loading errors\n' +
+      '3. Verify network connectivity to cdn.jsdelivr.net'
+    );
     // Still draw landmarks below even if connections are missing
   }
   
@@ -912,8 +935,8 @@ function attachSwipeToDelete() {
       currentX = e.touches[0].clientX;
       const diff = currentX - startX;
       
-      // Only allow left swipe (negative diff)
-      if (diff < 0 && diff > -100) {
+      // Only allow left swipe (negative diff) up to MAX_SWIPE_DISTANCE
+      if (diff < 0 && diff > -MAX_SWIPE_DISTANCE) {
         item.style.transform = `translateX(${diff}px)`;
         item.style.transition = 'none';
       }
@@ -924,8 +947,8 @@ function attachSwipeToDelete() {
       
       const diff = currentX - startX;
       
-      // If swiped more than 60px to the left, trigger delete
-      if (diff < -60) {
+      // If swiped more than SWIPE_DELETE_THRESHOLD to the left, trigger delete
+      if (diff < -SWIPE_DELETE_THRESHOLD) {
         const setIndex = parseInt(item.dataset.setIndex);
         deleteSet(setIndex);
       }
