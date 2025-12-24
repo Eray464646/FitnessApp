@@ -8,29 +8,44 @@ Interaktive mobile Web-App für KI-gestützte Bewegungserkennung mit **MediaPipe
 1. Repo clonen / herunterladen  
 2. `index.html` im Browser öffnen (oder lokalen Server nutzen: `python -m http.server 8000`)  
 3. Kamera-Tracking im Bereich **Training** aktivieren
+4. Für Food Scanner: Eigenen Gemini API Key im Profil eingeben
 
-#### Deployment (Vercel empfohlen)
+#### Deployment Optionen
+
+**Option 1: GitHub Pages + Vercel Proxy (Empfohlen für Produktion)**
+- ✅ Frontend kostenlos auf GitHub Pages
+- ✅ Serverless Proxy auf Vercel (löst CORS-Probleme)
+- ✅ Benutzer verwenden eigene API Keys
+- 📖 **[Vollständige Anleitung →](GITHUB_PAGES_DEPLOYMENT.md)**
+
+**Option 2: Vercel (All-in-One)**
 1. Vercel Account erstellen auf [vercel.com](https://vercel.com)
 2. Repository verbinden
-3. Environment Variable setzen:
-   - `GEMINI_API_KEY`: Dein Gemini API-Schlüssel von [Google AI Studio](https://aistudio.google.com/app/apikey)
+3. (Optional) Environment Variable setzen: `GEMINI_API_KEY`
 4. Deploy ausführen
 
 ### 🔐 Sicherheit & API-Schlüssel
 
-**WICHTIG:** API-Schlüssel werden **ausschließlich server-seitig** gespeichert!
+**DUAL-MODE System für maximale Flexibilität:**
 
-- Der Gemini API-Schlüssel wird als Environment Variable (`GEMINI_API_KEY`) auf dem Server (Vercel) gespeichert
-- **NIEMALS** API-Schlüssel im Frontend-Code oder localStorage speichern
-- Alle Vision API-Aufrufe gehen durch den Backend-Endpoint `/api/food-scan`
-- Der API-Schlüssel ist niemals im Browser sichtbar
+#### Modus 1: Benutzer-Bereitgestellte API Keys (Standard)
+- ✅ **Nutzer bringen ihre eigenen Gemini API Keys mit**
+- ✅ **Nur im Browser-Speicher (Session-Only)**
+- ✅ Nie in localStorage, Cookies oder Server gespeichert
+- ✅ Geht nach Seiten-Reload verloren
+- ✅ Maximaler Datenschutz
+- 📖 Anleitung: Profil → KI-Einstellungen → API Key eingeben
 
-#### API-Schlüssel einrichten (für Deployment)
+#### Modus 2: Server-Side API Key (Optional)
+- Server stellt API Key bereit (Environment Variable `GEMINI_API_KEY`)
+- Nutzer müssen keinen eigenen Key eingeben
+- Nur für vertrauenswürdige Deployments empfohlen
+
+**API-Schlüssel erhalten:**
 1. Besuche [Google AI Studio](https://aistudio.google.com/app/apikey)
 2. Melde dich mit deinem Google-Konto an
 3. Klicke auf "Create API Key"
 4. Kopiere den generierten Schlüssel (beginnt mit "AIza...")
-5. Füge ihn als Environment Variable `GEMINI_API_KEY` in deinem Vercel-Projekt hinzu
 
 ### 🎯 Implementierte Kernfunktionen
 
@@ -67,16 +82,23 @@ Interaktive mobile Web-App für KI-gestützte Bewegungserkennung mit **MediaPipe
 - Qualitätsmetriken und Form-Feedback
 - **Löschfunktion** mit Bestätigungsdialog
 
-#### **Food Scan (KI-gestützt & sicher)**
-- Backend-API-Endpoint (`/api/food-scan`) für sichere Vision-Aufrufe
-- Google Gemini Vision API für Lebensmittelerkennung
+#### **Food Scan (KI-gestützt & verbessert)**
+- **Dual-Mode Architektur:** Direct API calls + Serverless Proxy Fallback
+- **Breite Lebensmittelerkennung:** Obst, Gemüse, Fleisch, Fisch, Reis, Pasta, Brot, Milchprodukte, Snacks, Desserts, Getränke
+- **Multi-Item Detection:** Erkennt mehrere Lebensmittel auf einem Teller
+- **Gemischte Gerichte:** Bowls, Teller, Salate, Sandwiches, Pasta-Gerichte
+- **Intelligente Confidence-Logik:**
+  - Hohe Confidence (70-100%): Sicher erkannt
+  - Mittlere Confidence (40-69%): "Unsicher – bitte bestätigen"
+  - Nur bei definitiv kein Essen: "Kein Essen erkannt"
+- **Bildkompression:** Automatische Größenanpassung (max 1024px) für schnellere Uploads
+- **Detaillierte Fehlerdiagnose:** CORS, Auth (401/403), Quota (429), Format (400)
+- **Proxy-Support für GitHub Pages:** Automatischer Fallback wenn Direct Mode blockiert ist
 - **API-Status-Überwachung:**
   - Health Check Endpoint (`/api/food-scan-health`)
   - Visueller Status-Indikator im Profil
-  - "Food Scanner testen" Button für manuelle Überprüfung
-  - Klare Fehlermeldungen (Konfiguration, Auth, Quota, etc.)
-- **Confidence Gating:** Nur Detektionen über 60% Confidence werden akzeptiert
-- Unterscheidung zwischen "Kein Essen" und "Unsicher – bitte bestätigen"
+  - "Food Scanner testen" Button mit Modus-Anzeige (direct/proxy)
+  - Klare Fehlermeldungen
 - Portion-Slider für Anpassung der Mengen
 - Automatische Makro- und Kalorienschätzung
 - Debug-Logging im Development-Modus
@@ -129,22 +151,41 @@ WAITING → READY → ACTIVE ↔ PAUSED → STOPPED
 
 ### 🧪 Testing
 
-#### Food Scan Test
-1. Navigiere zur Profil-Sektion
-2. Klicke auf "🔍 Food Scanner testen"
-3. ✅ Erwartung: Status zeigt "Food Scanner betriebsbereit" (grün)
-4. Navigiere zur Ernährung-Sektion
-5. Lade ein Bananen-Bild hoch
-6. ✅ Erwartung: "Banane" wird erkannt mit Makros und Kalorien
-7. ❌ NICHT: "Kein Essen erkannt" bei offensichtlichen Lebensmitteln
+#### Food Scan Test (Updated)
+1. **Setup:**
+   - Navigiere zur Profil-Sektion
+   - Gib deinen Gemini API Key ein
+   - Klicke "Key setzen"
+2. **Test Connection:**
+   - Klicke auf "🔍 Food Scanner testen"
+   - ✅ Erwartung: "Food Scanner Test erfolgreich! Modus: direct/proxy"
+   - Zeigt verwendeten Modus (direct für lokal, proxy für GitHub Pages)
+3. **Test Banana Detection:**
+   - Navigiere zur Ernährung-Sektion
+   - Lade ein Bananen-Bild hoch
+   - ✅ Erwartung: "Banane" wird erkannt mit ~100 kcal und Makros
+   - ✅ Confidence sollte > 70% sein
+4. **Test Mixed Meal:**
+   - Lade ein Foto mit mehreren Lebensmitteln (z.B. Chicken + Rice + Salad)
+   - ✅ Erwartung: Alle Komponenten werden erkannt
+   - ✅ Items-Liste zeigt alle erkannten Lebensmittel
+   - ✅ Totals zeigen Summe aller Makros
+5. **Test Non-Food:**
+   - Lade ein Bild ohne Essen (z.B. Landschaft)
+   - ✅ Erwartung: "Kein Essen erkannt" oder "Unsicher" bei niedrigem Confidence
+6. **Error Cases:**
+   - ❌ NICHT: "Kein Essen erkannt" bei offensichtlichen Lebensmitteln
+   - ❌ NICHT: "API-Verbindung fehlgeschlagen" bei gültigem Key
+   - ✅ Bei GitHub Pages: Automatischer Fallback zu Proxy-Modus
 
 #### API Key Status Test
 1. Navigiere zur Profil-Sektion
 2. Prüfe den "Food Scanner Status" im KI-Einstellungen-Bereich
-3. ✅ Erwartung: Zeigt aktuellen Status (Konfiguriert/Nicht konfiguriert/Fehler)
+3. ✅ Erwartung: Zeigt aktuellen Status (Gesetzt/Nicht gesetzt/OK/Ungültig)
 4. Klicke "🔍 Food Scanner testen"
-5. ✅ Erwartung: Status aktualisiert sich mit klarer Fehlermeldung oder Erfolg
+5. ✅ Erwartung: Status aktualisiert sich mit klarer Meldung
 6. ✅ Erwartung: Zeigt "Letzter Test" Timestamp
+7. ✅ Erwartung: Bei Erfolg zeigt es den verwendeten Modus (direct/proxy)
 
 #### Pose Detection Test
 1. Navigiere zur Training-Sektion
