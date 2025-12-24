@@ -12,6 +12,8 @@ let backendHealthy = false;  // Track if backend is available
 // Food Detection Configuration
 // ============================================================================
 const FOOD_CONFIDENCE_THRESHOLD = 40;  // Minimum confidence % to accept detection (lowered for better detection)
+const FOOD_NAME_CONFIDENCE_THRESHOLD = 80;  // Minimum confidence % to use actual food names (vs generic "Essen")
+const DEFAULT_FOOD_CONFIDENCE = 70;  // Default confidence when not provided by AI
 const MAX_IMAGE_WIDTH = 1024;           // Max width for image compression
 const IMAGE_COMPRESSION_QUALITY = 0.8;  // JPEG compression quality
 
@@ -1723,15 +1725,15 @@ async function detectFoodWithAI(imageDataUrl) {
     
     // Calculate average confidence from all items
     const avgConfidence = result.items && result.items.length > 0
-      ? result.items.reduce((sum, item) => sum + (item.confidence || 70), 0) / result.items.length
-      : firstItem.confidence || 70;
+      ? result.items.reduce((sum, item) => sum + (item.confidence || DEFAULT_FOOD_CONFIDENCE), 0) / result.items.length
+      : firstItem.confidence || DEFAULT_FOOD_CONFIDENCE;
     
     // Apply confidence threshold for food names (80%)
     // If confidence is high enough, use actual food names; otherwise use generic "Essen"
     let foodLabel;
     let itemLabels = [];
     
-    if (avgConfidence >= 80 && result.items && result.items.length > 0) {
+    if (avgConfidence >= FOOD_NAME_CONFIDENCE_THRESHOLD && result.items && result.items.length > 0) {
       // High confidence - use actual food names
       // Filter out empty/undefined labels
       itemLabels = result.items
@@ -2255,18 +2257,18 @@ function generateFallbackPlan(age, gender, height, weight, equipment, frequency,
             { name: "Mountain Climbers", sets: 3, reps: "20-30", rest: 45 }
           ];
 
-  // Adjust sets/reps based on level
-  if (level === "anfänger") {
-    baseExercises.forEach(ex => {
-      ex.sets = Math.max(2, ex.sets - 1);
-      ex.rest = Math.min(120, ex.rest + 30);
-    });
-  } else if (level === "fortgeschritten") {
-    baseExercises.forEach(ex => {
-      ex.sets = Math.min(5, ex.sets + 1);
-      ex.rest = Math.max(45, ex.rest - 15);
-    });
-  }
+  // Adjust sets/reps based on level (create modified copy to avoid mutation)
+  const adjustedExercises = baseExercises.map(ex => {
+    const adjusted = { ...ex };
+    if (level === "anfänger") {
+      adjusted.sets = Math.max(2, ex.sets - 1);
+      adjusted.rest = Math.min(120, ex.rest + 30);
+    } else if (level === "fortgeschritten") {
+      adjusted.sets = Math.min(5, ex.sets + 1);
+      adjusted.rest = Math.max(45, ex.rest - 15);
+    }
+    return adjusted;
+  });
 
   // Generate days based on frequency
   const days = Array.from({ length: Math.max(2, Math.min(6, frequency)) }).map((_, idx) => {
@@ -2288,7 +2290,7 @@ function generateFallbackPlan(age, gender, height, weight, equipment, frequency,
       "fortgeschritten": 5
     };
     const exerciseCount = exerciseCounts[level] || 3;
-    const exercises = baseExercises.slice(0, Math.min(exerciseCount, baseExercises.length));
+    const exercises = adjustedExercises.slice(0, Math.min(exerciseCount, adjustedExercises.length));
     
     return {
       day: ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag"][idx] || `Tag ${idx + 1}`,
