@@ -7,6 +7,12 @@ const STORAGE_KEY = "fitnessAppState";
 // Key is cleared on page refresh, tab close, or explicit deletion
 let userGeminiApiKey = null;  // In-memory storage only
 
+// Configuration for API mode (direct or proxy)
+// Direct: Call Gemini API directly from browser (works locally, fails on GitHub Pages due to CORS)
+// Proxy: Use serverless proxy endpoint (works on GitHub Pages)
+let apiMode = 'auto';  // 'auto', 'direct', or 'proxy'
+let detectedMode = null;  // Stores the mode that was successfully used
+
 function setGeminiApiKey(key) {
   userGeminiApiKey = key ? key.trim() : null;
 }
@@ -26,6 +32,46 @@ function deleteGeminiApiKey() {
 
 function hasGeminiApiKey() {
   return userGeminiApiKey !== null && userGeminiApiKey.length > 0;
+}
+
+// ============================================================================
+// Food Detection Configuration
+// ============================================================================
+const FOOD_CONFIDENCE_THRESHOLD = 40;  // Minimum confidence % to accept detection (lowered for better detection)
+const MAX_IMAGE_WIDTH = 1024;           // Max width for image compression
+const IMAGE_COMPRESSION_QUALITY = 0.8;  // JPEG compression quality
+
+// ============================================================================
+// Image Compression Utility
+// ============================================================================
+// Compress and resize image to reduce payload size and avoid timeouts
+async function compressImage(dataUrl, maxWidth = MAX_IMAGE_WIDTH, quality = IMAGE_COMPRESSION_QUALITY) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      let width = img.width;
+      let height = img.height;
+      
+      // Resize if needed
+      if (width > maxWidth) {
+        height = (height * maxWidth) / width;
+        width = maxWidth;
+      }
+      
+      canvas.width = width;
+      canvas.height = height;
+      
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      
+      // Convert to JPEG with specified quality
+      const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+      resolve(compressedDataUrl);
+    };
+    img.onerror = () => reject(new Error('Failed to load image'));
+    img.src = dataUrl;
+  });
 }
 
 // ============================================================================
@@ -1495,106 +1541,116 @@ async function detectFoodWithAI(imageDataUrl) {
   }
   
   try {
+    // Compress image before sending
+    setAIStatus("Komprimiere Bild...", "info");
+    const compressedDataUrl = await compressImage(imageDataUrl, 1024, 0.8);
+    
     // Extract base64 data and MIME type from data URL
-    const matches = imageDataUrl.match(/^data:(.+);base64,(.+)$/);
+    const matches = compressedDataUrl.match(/^data:(.+);base64,(.+)$/);
     if (!matches) {
       throw new Error('Ungültiges Bildformat');
     }
 
     const mimeType = matches[1] || 'image/jpeg';
     const base64Data = matches[2];
+    
+    // Validate mime type
+    if (!['image/jpeg', 'image/png'].includes(mimeType)) {
+      throw new Error('Ungültiges Bildformat. Nur JPEG und PNG werden unterstützt.');
+    }
 
-    // Call Gemini API directly from client using user-provided key
-    // Use header for API key instead of query parameter for better security
+    setAIStatus("Sende Anfrage...", "info");
+
+    // Improved prompt for broad food recognition
+    const prompt = `Analysiere dieses Bild und identifiziere ALLE Lebensmittel und Getränke.
+
+WICHTIG: 
+- Erkenne Lebensmittel aus ALLEN Kategorien: Obst, Gemüse, Fleisch, Fisch, Reis, Pasta, Brot, Milchprodukte, Snacks, Desserts, Getränke
+- Bei mehreren Lebensmitteln auf einem Teller/Foto: Liste ALLE auf
+- Bei gemischten Gerichten (z.B. Bowl, Teller, Salat, Sandwich, Pasta-Gericht): Erkenne die Hauptkomponenten
+- Wenn ein Lebensmittel offensichtlich zu sehen ist, setze detected=true, auch bei niedriger Confidence
+- Nur wenn definitiv KEIN Essen im Bild ist, setze detected=false
+
+Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in folgendem Format (kein Markdown, kein Text drumherum):
+
+{
+  "detected": true,
+  "items": [
+    {
+      "label": "Lebensmittel 1",
+      "confidence": 85,
+      "portion": {"unit": "g", "value": 120},
+      "macros": {"protein": 1.3, "fat": 0.4, "carbs": 27.0},
+      "calories": 105
+    }
+  ],
+  "totals": {"calories": 105, "protein": 1.3, "fat": 0.4, "carbs": 27.0},
+  "notes": "Kurze Erklärung"
+}
+
+Confidence-Logik:
+- Wenn eindeutig Essen sichtbar: confidence 70-100, detected=true
+- Wenn unsicher aber wahrscheinlich Essen: confidence 40-69, detected=true, notes="Unsicher – bitte bestätigen"
+- Wenn definitiv kein Essen: detected=false
+
+Schätze realistische Nährwerte für typische Portionen.`;
+
+    // Try direct API call first, then fall back to proxy if needed
+    let result = null;
+    let lastError = null;
+    
     const apiKey = getGeminiApiKey();
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
     
-    const geminiResponse = await fetch(geminiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [
-            {
-              text: "Analysiere dieses Bild und identifiziere alle Lebensmittel. Gib die Antwort als JSON zurück mit folgendem Format: {\"detected\": true/false, \"items\": [\"item1\", \"item2\"], \"label\": \"Hauptgericht Name\", \"confidence\": 0-100, \"calories\": Zahl, \"protein\": Zahl, \"carbs\": Zahl, \"fat\": Zahl, \"reasoning\": \"kurze Erklärung\"}. Wenn kein Essen erkennbar ist, setze detected auf false und gib eine hilfreiche Nachricht im reasoning-Feld. Schätze realistische Nährwerte für eine typische Portion. Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text oder Markdown-Formatierung."
-            },
-            {
-              inlineData: {
-                mimeType: mimeType,
-                data: base64Data
-              }
-            }
-          ]
-        }],
-        generationConfig: {
-          temperature: 0.4,
-          topK: 32,
-          topP: 1,
-          maxOutputTokens: 500
+    // Determine which mode to try
+    const modesToTry = apiMode === 'auto' ? ['direct', 'proxy'] : [apiMode];
+    
+    for (const mode of modesToTry) {
+      try {
+        if (mode === 'direct') {
+          result = await callGeminiDirect(apiKey, mimeType, base64Data, prompt);
+          detectedMode = 'direct';
+          console.log('✅ Direct API call succeeded');
+          break;
+        } else if (mode === 'proxy') {
+          result = await callGeminiProxy(apiKey, mimeType, base64Data, prompt);
+          detectedMode = 'proxy';
+          console.log('✅ Proxy API call succeeded');
+          break;
         }
-      })
-    });
-
-    if (!geminiResponse.ok) {
-      const errorData = await geminiResponse.json().catch(() => ({}));
-      
-      // Handle specific error cases
-      let errorMessage = 'Fehler bei der Bilderkennung';
-      if (geminiResponse.status === 400) {
-        errorMessage = 'Ungültiges Bildformat';
-      } else if (geminiResponse.status === 429) {
-        errorMessage = 'API-Limit erreicht. Bitte versuche es später erneut.';
-      } else if (geminiResponse.status === 403 || geminiResponse.status === 401) {
-        errorMessage = 'Ungültiger API Key. Bitte überprüfe deinen Key.';
-        updateApiKeyStatus('invalid');
-      } else if (geminiResponse.status === 404) {
-        errorMessage = 'API-Endpunkt nicht gefunden';
-      }
-      
-      throw new Error(errorMessage);
-    }
-
-    const data = await geminiResponse.json();
-    
-    // Extract text from Gemini response
-    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
-      throw new Error('Invalid API response');
-    }
-    
-    const content = data.candidates[0].content.parts[0].text;
-
-    // Try to extract JSON from the response
-    let result;
-    try {
-      // Try to parse as direct JSON
-      result = JSON.parse(content);
-    } catch {
-      // Try to extract JSON from markdown code blocks
-      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-      if (jsonMatch) {
-        result = JSON.parse(jsonMatch[1]);
-      } else {
-        // Try to find JSON object in the text
-        const objectMatch = content.match(/\{[\s\S]*\}/);
-        if (objectMatch) {
-          result = JSON.parse(objectMatch[0]);
-        } else {
-          throw new Error('Could not parse API response');
-        }
+      } catch (error) {
+        console.log(`❌ ${mode} mode failed:`, error.message);
+        lastError = error;
+        // Continue to next mode
       }
     }
+    
+    if (!result) {
+      throw lastError || new Error('API call failed');
+    }
 
-    // Apply confidence gating - show "Unsicher" instead of "Kein Essen" for low confidence
-    const CONFIDENCE_THRESHOLD = 60;
-    if (result.detected && result.confidence < CONFIDENCE_THRESHOLD) {
-      result.detected = false;
-      result.message = 'Unsicher – bitte bestätigen oder klareres Foto verwenden';
-      result.lowConfidence = true;
-    } else if (!result.detected && !result.message) {
-      result.message = result.reasoning || 'Kein Essen erkannt';
+    // Parse and validate result
+    result = parseGeminiResponse(result);
+
+    // Apply confidence gating
+    if (result.detected) {
+      // Calculate average confidence from items
+      const avgConfidence = result.items && result.items.length > 0
+        ? result.items.reduce((sum, item) => sum + (item.confidence || 70), 0) / result.items.length
+        : result.confidence || 70;
+      
+      if (avgConfidence < FOOD_CONFIDENCE_THRESHOLD) {
+        result.detected = false;
+        result.message = 'Unsicher – bitte bestätigen oder klareres Foto verwenden';
+        result.lowConfidence = true;
+      } else if (avgConfidence < 60) {
+        // Low confidence but still detected - add warning
+        result.message = 'Unsicher – bitte bestätigen';
+        result.lowConfidence = true;
+      }
+    }
+    
+    if (!result.detected && !result.message) {
+      result.message = result.notes || 'Kein Essen erkannt';
     }
 
     // Update API status to "ok" after successful call
@@ -1617,40 +1673,189 @@ async function detectFoodWithAI(imageDataUrl) {
 
     setAIStatus("Analyse abgeschlossen", "info");
     
-    // Ensure all required fields are present
-    result.label = result.label || 'Unbekanntes Lebensmittel';
-    result.items = result.items || [result.label];
-    result.calories = Math.round(result.calories || 0);
-    result.protein = Math.round(result.protein || 0);
-    result.carbs = Math.round(result.carbs || 0);
-    result.fat = Math.round(result.fat || 0);
-    result.confidence = Math.round(result.confidence || 70);
+    // Convert new format to legacy format for compatibility
+    const totals = result.totals || {};
+    const firstItem = result.items && result.items[0] || {};
     
     return {
-      label: result.label,
-      calories: result.calories,
-      protein: result.protein,
-      carbs: result.carbs,
-      fat: result.fat,
-      confidence: result.confidence,
-      items: result.items,
-      reasoning: result.reasoning
+      label: result.items && result.items.length > 0 
+        ? result.items.map(i => i.label).join(', ')
+        : 'Unbekanntes Lebensmittel',
+      calories: Math.round(totals.calories || firstItem.calories || 0),
+      protein: Math.round(totals.protein || firstItem.macros?.protein || 0),
+      carbs: Math.round(totals.carbs || firstItem.macros?.carbs || 0),
+      fat: Math.round(totals.fat || firstItem.macros?.fat || 0),
+      confidence: Math.round(firstItem.confidence || 70),
+      items: result.items ? result.items.map(i => i.label) : [],
+      reasoning: result.notes || result.message
     };
     
   } catch (error) {
     setAIStatus("Fehler bei der Analyse", "warn");
     
-    // Show error to user
+    // Show detailed error to user
     const errorMessage = error.message || 'Unbekannter Fehler';
+    let errorDetails = '';
+    
+    // Provide helpful context based on error type
+    if (errorMessage.includes('CORS') || errorMessage.includes('network')) {
+      errorDetails = 'Netzwerkfehler. Stelle sicher, dass du eine Internetverbindung hast.';
+    } else if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Ungültiger API Key')) {
+      errorDetails = 'API Key ungültig. Bitte überprüfe deinen Key.';
+      updateApiKeyStatus('invalid');
+    } else if (errorMessage.includes('429')) {
+      errorDetails = 'API-Limit erreicht. Bitte versuche es später erneut.';
+    } else if (errorMessage.includes('400')) {
+      errorDetails = 'Ungültiges Bildformat oder zu großes Bild.';
+    }
+    
     document.getElementById("food-details").innerHTML = `
       <p class='muted' style='color: #b91c1c;'>
-        Fehler bei der Bilderkennung: ${escapeHTML(errorMessage)}<br/>
-        <span class='small'>Bitte versuche es später erneut.</span>
+        <strong>Fehler bei der Bilderkennung:</strong> ${escapeHTML(errorMessage)}<br/>
+        <span class='small'>${errorDetails || 'Bitte versuche es später erneut.'}</span>
       </p>
     `;
     
+    console.error('Food detection error:', error);
+    
     return null;
   }
+}
+
+// Call Gemini API directly from browser
+async function callGeminiDirect(apiKey, mimeType, base64Data, prompt) {
+  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+  
+  const geminiResponse = await fetch(geminiUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-goog-api-key': apiKey
+    },
+    body: JSON.stringify({
+      contents: [{
+        parts: [
+          { text: prompt },
+          {
+            inlineData: {
+              mimeType: mimeType,
+              data: base64Data
+            }
+          }
+        ]
+      }],
+      generationConfig: {
+        temperature: 0.4,
+        topK: 32,
+        topP: 1,
+        maxOutputTokens: 1000
+      }
+    })
+  });
+
+  if (!geminiResponse.ok) {
+    const errorData = await geminiResponse.json().catch(() => ({}));
+    const status = geminiResponse.status;
+    
+    // Detailed error messages
+    if (status === 400) {
+      throw new Error('Ungültiges Bildformat (400)');
+    } else if (status === 401 || status === 403) {
+      throw new Error('Ungültiger API Key (401/403)');
+    } else if (status === 429) {
+      throw new Error('API-Limit erreicht (429)');
+    } else if (status === 404) {
+      throw new Error('API-Endpunkt nicht gefunden (404)');
+    } else {
+      throw new Error(`API-Fehler (${status})`);
+    }
+  }
+
+  return await geminiResponse.json();
+}
+
+// Call Gemini API via serverless proxy
+async function callGeminiProxy(apiKey, mimeType, base64Data, prompt) {
+  const proxyUrl = '/api/food-scan';
+  
+  const proxyResponse = await fetch(proxyUrl, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      imageBase64: base64Data,
+      mimeType: mimeType,
+      key: apiKey,
+      prompt: prompt
+    })
+  });
+
+  if (!proxyResponse.ok) {
+    const errorData = await proxyResponse.json().catch(() => ({}));
+    const status = proxyResponse.status;
+    
+    if (status === 400) {
+      throw new Error('Ungültiger Request (400)');
+    } else if (status === 401 || status === 403) {
+      throw new Error('Ungültiger API Key (401/403)');
+    } else if (status === 429) {
+      throw new Error('API-Limit erreicht (429)');
+    } else if (status === 500) {
+      throw new Error(errorData.message || 'Server-Fehler (500)');
+    } else {
+      throw new Error(`Proxy-Fehler (${status})`);
+    }
+  }
+
+  return await proxyResponse.json();
+}
+
+// Parse Gemini API response (handle different formats)
+function parseGeminiResponse(data) {
+  // Extract text from Gemini response
+  let content;
+  if (data.candidates && data.candidates[0] && data.candidates[0].content) {
+    content = data.candidates[0].content.parts[0].text;
+  } else if (typeof data === 'string') {
+    content = data;
+  } else if (data.detected !== undefined) {
+    // Already parsed
+    return data;
+  } else {
+    throw new Error('Invalid API response structure');
+  }
+
+  // Try to extract JSON from the response
+  let result;
+  try {
+    // Try to parse as direct JSON
+    result = JSON.parse(content);
+  } catch {
+    // Try to extract JSON from markdown code blocks
+    const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+    if (jsonMatch) {
+      result = JSON.parse(jsonMatch[1]);
+    } else {
+      // Try to find JSON object in the text
+      const objectMatch = content.match(/\{[\s\S]*\}/);
+      if (objectMatch) {
+        result = JSON.parse(objectMatch[0]);
+      } else {
+        // Fallback: treat as detected with text summary
+        console.warn('Could not parse JSON, using fallback');
+        return {
+          detected: true,
+          items: [{ label: 'Lebensmittel erkannt', confidence: 50, calories: 0, macros: { protein: 0, fat: 0, carbs: 0 } }],
+          totals: { calories: 0, protein: 0, fat: 0, carbs: 0 },
+          notes: content.substring(0, 200),
+          lowConfidence: true
+        };
+      }
+    }
+  }
+
+  return result;
 }
 
 // Note: Old server-side implementation has been replaced with client-side API key management
@@ -1728,25 +1933,99 @@ async function testFoodScanner() {
   
   try {
     const apiKey = getGeminiApiKey();
-    const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
     
-    const testResponse = await fetch(testUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': apiKey
-      },
-      body: JSON.stringify({
-        contents: [{
-          parts: [{
-            text: "Test"
-          }]
-        }],
-        generationConfig: {
-          maxOutputTokens: 10
+    // Try to test the connection using a minimal text-only request
+    let testSuccess = false;
+    let errorMessage = '';
+    let usedMode = '';
+    
+    // Try direct mode first
+    try {
+      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
+      
+      const testResponse = await fetch(testUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          contents: [{
+            parts: [{
+              text: "Test"
+            }]
+          }],
+          generationConfig: {
+            maxOutputTokens: 10
+          }
+        })
+      });
+
+      if (!testResponse.ok) {
+        const status = testResponse.status;
+        
+        if (status === 403 || status === 401) {
+          errorMessage = 'Ungültiger API Key (401/403)';
+          updateApiKeyStatus('invalid');
+        } else if (status === 429) {
+          errorMessage = 'API-Limit erreicht (429)';
+          testSuccess = true; // Key is valid, just rate limited
+          usedMode = 'direct (rate limited)';
+          updateApiKeyStatus('ok');
+        } else if (status === 400) {
+          errorMessage = 'Ungültige Anfrage (400)';
+        } else {
+          errorMessage = `API-Fehler (${status})`;
         }
-      })
-    });
+      } else {
+        testSuccess = true;
+        usedMode = 'direct';
+        updateApiKeyStatus('ok');
+      }
+    } catch (directError) {
+      // Direct mode failed, could be CORS or network issue
+      console.log('Direct mode test failed:', directError.message);
+      
+      // Check if it's a CORS error
+      if (directError.message.includes('CORS') || directError.message.includes('Failed to fetch') || directError.name === 'TypeError') {
+        errorMessage = 'CORS blockiert - versuche Proxy-Modus';
+        
+        // Try proxy mode
+        try {
+          const proxyResponse = await fetch('/api/food-scan-test', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              key: apiKey
+            })
+          });
+          
+          if (proxyResponse.ok) {
+            const data = await proxyResponse.json();
+            if (data.status === 'ok' || data.configured) {
+              testSuccess = true;
+              usedMode = 'proxy';
+              updateApiKeyStatus('ok');
+              errorMessage = '';
+            } else {
+              errorMessage = data.message || 'Proxy-Test fehlgeschlagen';
+            }
+          } else if (proxyResponse.status === 404) {
+            // Proxy not available
+            errorMessage = 'CORS blockiert & Proxy nicht verfügbar. Deployment auf Vercel/Netlify erforderlich.';
+          } else {
+            errorMessage = `Proxy-Fehler (${proxyResponse.status})`;
+          }
+        } catch (proxyError) {
+          // Proxy also failed
+          errorMessage = 'Direkt: CORS blockiert, Proxy: Nicht verfügbar';
+        }
+      } else {
+        errorMessage = directError.message;
+      }
+    }
 
     // Update last test time
     const now = new Date();
@@ -1760,35 +2039,35 @@ async function testFoodScanner() {
       });
     }
 
-    if (!testResponse.ok) {
-      const errorData = await testResponse.json().catch(() => ({}));
-      
-      let message = 'API-Verbindung fehlgeschlagen';
-      
-      if (testResponse.status === 403 || testResponse.status === 401) {
-        message = 'API-Authentifizierung fehlgeschlagen - Ungültiger Key';
-        updateApiKeyStatus('invalid');
-      } else if (testResponse.status === 429) {
-        message = 'API-Limit erreicht - Quotenbegrenzung überschritten';
-        updateApiKeyStatus('ok'); // Key is valid, just rate limited
-      } else if (testResponse.status === 400) {
-        message = 'Ungültige API-Anfrage';
-        updateApiKeyStatus('invalid');
-      } else {
-        updateApiKeyStatus('invalid');
-      }
-      
-      alert(`Test fehlgeschlagen: ${message}`);
-      return;
+    if (testSuccess) {
+      alert(`✅ Food Scanner Test erfolgreich!\n\nModus: ${usedMode}\nDein API Key funktioniert einwandfrei.`);
+    } else {
+      alert(`❌ Test fehlgeschlagen\n\n${errorMessage}\n\nHinweise:\n- Überprüfe deinen API Key\n- Stelle sicher, dass du eine Internetverbindung hast\n- Bei GitHub Pages: Proxy-Deployment erforderlich`);
     }
-
-    // API is working correctly
-    updateApiKeyStatus('ok');
-    alert('✅ Food Scanner Test erfolgreich!\n\nDein API Key funktioniert einwandfrei.');
     
   } catch (error) {
     updateApiKeyStatus('invalid');
-    alert(`Fehler beim Testen: ${error.message}`);
+    
+    // Update last test time even on error
+    const now = new Date();
+    if (lastTestEl) {
+      lastTestEl.textContent = now.toLocaleString('de-DE', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+    
+    let errorMsg = error.message || 'Unbekannter Fehler';
+    
+    // Provide helpful context
+    if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
+      errorMsg = 'Netzwerkfehler - CORS blockiert oder keine Internetverbindung';
+    }
+    
+    alert(`❌ Fehler beim Testen\n\n${errorMsg}\n\nBitte überprüfe:\n- API Key korrekt?\n- Internetverbindung vorhanden?\n- GitHub Pages? → Proxy erforderlich`);
   }
 }
 

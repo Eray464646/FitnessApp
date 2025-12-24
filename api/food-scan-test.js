@@ -1,5 +1,5 @@
-// Health check endpoint for food scanning API
-// Tests if Gemini API key is configured and accessible
+// Test endpoint for food scanning API
+// Minimal test to verify API key works without consuming much quota
 //
 // Platform Compatibility:
 // - Vercel: Supports CommonJS (module.exports)
@@ -23,7 +23,7 @@ module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0]);
   }
   
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
   // Handle preflight request
@@ -31,21 +31,27 @@ module.exports = async (req, res) => {
     return res.status(200).end();
   }
 
-  // Only accept GET requests
-  if (req.method !== 'GET') {
+  // Accept both GET and POST
+  if (req.method !== 'GET' && req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
   try {
-    // Check if API key is configured (server-side only, not user-provided)
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Get API key from request body (POST) or environment (GET)
+    let apiKey;
+    
+    if (req.method === 'POST' && req.body && req.body.key) {
+      apiKey = req.body.key;
+    } else {
+      apiKey = process.env.GEMINI_API_KEY;
+    }
     
     if (!apiKey) {
       return res.status(200).json({
         status: 'error',
         configured: false,
         message: 'API-Schlüssel nicht konfiguriert',
-        details: 'Bitte GEMINI_API_KEY als Environment Variable setzen'
+        details: 'Bitte GEMINI_API_KEY als Environment Variable setzen oder im Request übergeben'
       });
     }
 
@@ -59,8 +65,7 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Optional: Test API connectivity with a minimal request
-    // This is a lightweight check that doesn't consume quota significantly
+    // Test API connectivity with a minimal request
     const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
     
     const testResponse = await fetch(testUrl, {
@@ -82,17 +87,27 @@ module.exports = async (req, res) => {
 
     if (!testResponse.ok) {
       const errorData = await testResponse.json().catch(() => ({}));
+      const status = testResponse.status;
       
       let message = 'API-Verbindung fehlgeschlagen';
       let details = 'Unbekannter Fehler';
       
-      if (testResponse.status === 403 || testResponse.status === 401) {
+      if (status === 403 || status === 401) {
         message = 'API-Authentifizierung fehlgeschlagen';
         details = 'Bitte API-Schlüssel überprüfen';
-      } else if (testResponse.status === 429) {
+      } else if (status === 429) {
         message = 'API-Limit erreicht';
-        details = 'Quotenbegrenzung überschritten';
-      } else if (testResponse.status === 400) {
+        details = 'Quotenbegrenzung überschritten (aber Key ist gültig)';
+        // Still return success since the key is valid
+        return res.status(200).json({
+          status: 'ok',
+          configured: true,
+          reachable: true,
+          rateLimited: true,
+          message: message,
+          details: details
+        });
+      } else if (status === 400) {
         message = 'Ungültige API-Anfrage';
         details = 'Modell-Endpunkt nicht erreichbar';
       }
@@ -103,7 +118,7 @@ module.exports = async (req, res) => {
         reachable: false,
         message: message,
         details: details,
-        apiStatus: testResponse.status
+        apiStatus: status
       });
     }
 
