@@ -1,5 +1,34 @@
 const STORAGE_KEY = "fitnessAppState";
 
+// ============================================================================
+// API Key Management (In-Memory Only - Session Only)
+// ============================================================================
+// SECURITY: API key is stored ONLY in memory and NEVER persisted
+// Key is cleared on page refresh, tab close, or explicit deletion
+let userGeminiApiKey = null;  // In-memory storage only
+
+function setGeminiApiKey(key) {
+  userGeminiApiKey = key ? key.trim() : null;
+}
+
+function getGeminiApiKey() {
+  return userGeminiApiKey;
+}
+
+function deleteGeminiApiKey() {
+  userGeminiApiKey = null;
+  // Also clear any cached food detection results
+  lastFoodDetection = null;
+  document.getElementById("food-preview").src = "";
+  document.getElementById("food-details").innerHTML = "<p class='muted'>API Key gelöscht. Bitte neuen Key eingeben.</p>";
+  updateApiKeyStatus();
+}
+
+function hasGeminiApiKey() {
+  return userGeminiApiKey !== null && userGeminiApiKey.length > 0;
+}
+
+// ============================================================================
 // Pose detection constants
 const MIN_PERSON_CONFIDENCE = 0.6;  // Minimum confidence to consider person detected
 const MIN_STABLE_CONFIDENCE = 0.7;   // Minimum confidence for stable tracking
@@ -1453,52 +1482,125 @@ function saveSet(auto = false) {
 async function detectFoodWithAI(imageDataUrl) {
   setAIStatus("Analysiere Bild...", "info");
   
+  // Check if user has provided API key
+  if (!hasGeminiApiKey()) {
+    setAIStatus("API Key fehlt", "warn");
+    document.getElementById("food-details").innerHTML = `
+      <p class='muted' style='color: #b91c1c;'>
+        <strong>Bitte API Key eingeben</strong><br/>
+        <span class='small'>Gehe zu Profil → KI-Einstellungen und gib deinen Gemini API Key ein.</span>
+      </p>
+    `;
+    return null;
+  }
+  
   try {
-    // Call backend API endpoint (serverless function)
-    // The API key is stored securely on the server, never exposed to frontend
-    const response = await fetch('/api/food-scan', {
+    // Extract base64 data and MIME type from data URL
+    const matches = imageDataUrl.match(/^data:(.+);base64,(.+)$/);
+    if (!matches) {
+      throw new Error('Ungültiges Bildformat');
+    }
+
+    const mimeType = matches[1] || 'image/jpeg';
+    const base64Data = matches[2];
+
+    // Call Gemini API directly from client using user-provided key
+    const apiKey = getGeminiApiKey();
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
+    const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        image: imageDataUrl
+        contents: [{
+          parts: [
+            {
+              text: "Analysiere dieses Bild und identifiziere alle Lebensmittel. Gib die Antwort als JSON zurück mit folgendem Format: {\"detected\": true/false, \"items\": [\"item1\", \"item2\"], \"label\": \"Hauptgericht Name\", \"confidence\": 0-100, \"calories\": Zahl, \"protein\": Zahl, \"carbs\": Zahl, \"fat\": Zahl, \"reasoning\": \"kurze Erklärung\"}. Wenn kein Essen erkennbar ist, setze detected auf false und gib eine hilfreiche Nachricht im reasoning-Feld. Schätze realistische Nährwerte für eine typische Portion. Antworte NUR mit dem JSON-Objekt, ohne zusätzlichen Text oder Markdown-Formatierung."
+            },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Data
+              }
+            }
+          ]
+        }],
+        generationConfig: {
+          temperature: 0.4,
+          topK: 32,
+          topP: 1,
+          maxOutputTokens: 500
+        }
       })
     });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Backend API error:', response.status, errorData);
+    if (!geminiResponse.ok) {
+      const errorData = await geminiResponse.json().catch(() => ({}));
       
       // Handle specific error cases
       let errorMessage = 'Fehler bei der Bilderkennung';
-      if (response.status === 500 && errorData.error === 'Server configuration error') {
-        errorMessage = 'Server nicht konfiguriert. Bitte Administrator kontaktieren.';
-      } else if (response.status === 429) {
+      if (geminiResponse.status === 400) {
+        errorMessage = 'Ungültiges Bildformat';
+      } else if (geminiResponse.status === 429) {
         errorMessage = 'API-Limit erreicht. Bitte versuche es später erneut.';
-      } else if (response.status === 400) {
-        errorMessage = 'Ungültiges Bildformat. Bitte versuche ein anderes Bild.';
+      } else if (geminiResponse.status === 403 || geminiResponse.status === 401) {
+        errorMessage = 'Ungültiger API Key. Bitte überprüfe deinen Key.';
+        updateApiKeyStatus('invalid');
+      } else if (geminiResponse.status === 404) {
+        errorMessage = 'API-Endpunkt nicht gefunden';
       }
       
       throw new Error(errorMessage);
     }
 
-    const result = await response.json();
+    const data = await geminiResponse.json();
     
-    // Debug logging in development
-    if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-      console.log('Food detection result:', {
-        detected: result.detected,
-        label: result.label,
-        confidence: result.confidence,
-        items: result.items
-      });
+    // Extract text from Gemini response
+    if (!data.candidates || !data.candidates[0] || !data.candidates[0].content) {
+      throw new Error('Invalid API response');
+    }
+    
+    const content = data.candidates[0].content.parts[0].text;
+
+    // Try to extract JSON from the response
+    let result;
+    try {
+      // Try to parse as direct JSON
+      result = JSON.parse(content);
+    } catch {
+      // Try to extract JSON from markdown code blocks
+      const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
+      if (jsonMatch) {
+        result = JSON.parse(jsonMatch[1]);
+      } else {
+        // Try to find JSON object in the text
+        const objectMatch = content.match(/\{[\s\S]*\}/);
+        if (objectMatch) {
+          result = JSON.parse(objectMatch[0]);
+        } else {
+          throw new Error('Could not parse API response');
+        }
+      }
     }
 
+    // Apply confidence gating - show "Unsicher" instead of "Kein Essen" for low confidence
+    const CONFIDENCE_THRESHOLD = 60;
+    if (result.detected && result.confidence < CONFIDENCE_THRESHOLD) {
+      result.detected = false;
+      result.message = 'Unsicher – bitte bestätigen oder klareres Foto verwenden';
+      result.lowConfidence = true;
+    } else if (!result.detected && !result.message) {
+      result.message = result.reasoning || 'Kein Essen erkannt';
+    }
+
+    // Update API status to "ok" after successful call
+    updateApiKeyStatus('ok');
+
     if (!result.detected) {
-      setAIStatus("Kein Essen erkannt", "warn");
+      setAIStatus(result.lowConfidence ? "Unsichere Erkennung" : "Kein Essen erkannt", "warn");
       
-      // Show helpful message for low confidence
       if (result.message) {
         document.getElementById("food-details").innerHTML = `
           <p class='muted' style='color: #92400e;'>
@@ -1513,22 +1615,30 @@ async function detectFoodWithAI(imageDataUrl) {
 
     setAIStatus("Analyse abgeschlossen", "info");
     
+    // Ensure all required fields are present
+    result.label = result.label || 'Unbekanntes Lebensmittel';
+    result.items = result.items || [result.label];
+    result.calories = Math.round(result.calories || 0);
+    result.protein = Math.round(result.protein || 0);
+    result.carbs = Math.round(result.carbs || 0);
+    result.fat = Math.round(result.fat || 0);
+    result.confidence = Math.round(result.confidence || 70);
+    
     return {
       label: result.label,
-      calories: Math.round(result.calories),
-      protein: Math.round(result.protein),
-      carbs: Math.round(result.carbs),
-      fat: Math.round(result.fat),
-      confidence: result.confidence || 80,
-      items: result.items || [result.label],
+      calories: result.calories,
+      protein: result.protein,
+      carbs: result.carbs,
+      fat: result.fat,
+      confidence: result.confidence,
+      items: result.items,
       reasoning: result.reasoning
     };
     
   } catch (error) {
-    console.error('Food detection error:', error);
     setAIStatus("Fehler bei der Analyse", "warn");
     
-    // Show error to user (without exposing API key)
+    // Show error to user
     const errorMessage = error.message || 'Unbekannter Fehler';
     document.getElementById("food-details").innerHTML = `
       <p class='muted' style='color: #b91c1c;'>
@@ -1543,6 +1653,141 @@ async function detectFoodWithAI(imageDataUrl) {
 
 // API key management removed - keys are now stored securely on the server
 // This function is no longer needed as all API calls go through backend
+
+// ============================================================================
+// API Key Status Management
+// ============================================================================
+function updateApiKeyStatus(status = null) {
+  const statusText = document.getElementById("api-status-text");
+  const statusDetails = document.getElementById("api-status-details");
+  const statusDisplay = document.getElementById("api-status-display");
+  
+  if (!statusText || !statusDetails || !statusDisplay) return;
+  
+  if (status === null) {
+    // Auto-detect status based on whether key is set
+    if (!hasGeminiApiKey()) {
+      status = 'not_set';
+    } else {
+      status = 'set';
+    }
+  }
+  
+  switch(status) {
+    case 'not_set':
+      statusText.textContent = "❌ Nicht gesetzt";
+      statusDetails.textContent = "Bitte gib deinen Gemini API Key ein";
+      statusDisplay.style.background = "#fee2e2"; // red
+      statusDisplay.style.color = "#991b1b";
+      break;
+    case 'set':
+      statusText.textContent = "✅ Gesetzt";
+      statusDetails.textContent = "API Key gespeichert (nur für diese Sitzung)";
+      statusDisplay.style.background = "#dbeafe"; // blue
+      statusDisplay.style.color = "#1e3a8a";
+      break;
+    case 'ok':
+      statusText.textContent = "✅ Verbindung ok";
+      statusDetails.textContent = "API Key funktioniert einwandfrei";
+      statusDisplay.style.background = "#dcfce7"; // green
+      statusDisplay.style.color = "#166534";
+      break;
+    case 'invalid':
+      statusText.textContent = "❌ Ungültig";
+      statusDetails.textContent = "API Key ist ungültig oder abgelaufen";
+      statusDisplay.style.background = "#fee2e2"; // red
+      statusDisplay.style.color = "#991b1b";
+      break;
+    case 'testing':
+      statusText.textContent = "🔍 Wird getestet...";
+      statusDetails.textContent = "Sende Testanfrage an Gemini API";
+      statusDisplay.style.background = "#f1f5f9"; // gray
+      statusDisplay.style.color = "#334155";
+      break;
+    default:
+      statusText.textContent = "❓ Unbekannt";
+      statusDetails.textContent = "";
+      statusDisplay.style.background = "#f1f5f9";
+      statusDisplay.style.color = "#334155";
+  }
+}
+
+// Test the Food Scanner with current API key
+async function testFoodScanner() {
+  const lastTestEl = document.getElementById("api-last-test");
+  
+  if (!hasGeminiApiKey()) {
+    updateApiKeyStatus('not_set');
+    alert("Bitte zuerst einen API Key eingeben!");
+    return;
+  }
+  
+  updateApiKeyStatus('testing');
+  
+  try {
+    const apiKey = getGeminiApiKey();
+    const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    
+    const testResponse = await fetch(testUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        contents: [{
+          parts: [{
+            text: "Test"
+          }]
+        }],
+        generationConfig: {
+          maxOutputTokens: 10
+        }
+      })
+    });
+
+    // Update last test time
+    const now = new Date();
+    if (lastTestEl) {
+      lastTestEl.textContent = now.toLocaleString('de-DE', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric',
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    }
+
+    if (!testResponse.ok) {
+      const errorData = await testResponse.json().catch(() => ({}));
+      
+      let message = 'API-Verbindung fehlgeschlagen';
+      
+      if (testResponse.status === 403 || testResponse.status === 401) {
+        message = 'API-Authentifizierung fehlgeschlagen - Ungültiger Key';
+        updateApiKeyStatus('invalid');
+      } else if (testResponse.status === 429) {
+        message = 'API-Limit erreicht - Quotenbegrenzung überschritten';
+        updateApiKeyStatus('ok'); // Key is valid, just rate limited
+      } else if (testResponse.status === 400) {
+        message = 'Ungültige API-Anfrage';
+        updateApiKeyStatus('invalid');
+      } else {
+        updateApiKeyStatus('invalid');
+      }
+      
+      alert(`Test fehlgeschlagen: ${message}`);
+      return;
+    }
+
+    // API is working correctly
+    updateApiKeyStatus('ok');
+    alert('✅ Food Scanner Test erfolgreich!\n\nDein API Key funktioniert einwandfrei.');
+    
+  } catch (error) {
+    updateApiKeyStatus('invalid');
+    alert(`Fehler beim Testen: ${error.message}`);
+  }
+}
 
 function renderFoodDetection() {
   if (!lastFoodDetection) {
@@ -1582,6 +1827,20 @@ async function handleFoodInput(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   
+  // Check if API key is set before processing
+  if (!hasGeminiApiKey()) {
+    alert("Bitte zuerst einen API Key eingeben!\n\nGehe zu Profil → KI-Einstellungen und gib deinen Gemini API Key ein.");
+    // Clear the file input
+    event.target.value = '';
+    document.getElementById("food-details").innerHTML = `
+      <p class='muted' style='color: #b91c1c;'>
+        <strong>API Key fehlt</strong><br/>
+        <span class='small'>Bitte gehe zu Profil → KI-Einstellungen und gib deinen Gemini API Key ein.</span>
+      </p>
+    `;
+    return;
+  }
+  
   const reader = new FileReader();
   reader.onload = async (e) => {
     const preview = document.getElementById("food-preview");
@@ -1597,8 +1856,8 @@ async function handleFoodInput(event) {
     if (lastFoodDetection) {
       renderFoodDetection();
     } else {
-      document.getElementById("food-details").innerHTML = "<p class='muted' style='color: #b91c1c;'>Kein Essen im Bild erkannt. Bitte versuche es mit einem anderen Foto.</p>";
-      setAIStatus("Kein Essen erkannt", "warn");
+      // Error message already set in detectFoodWithAI
+      setAIStatus("Analyse fehlgeschlagen", "warn");
     }
   };
   reader.readAsDataURL(file);
@@ -1788,6 +2047,48 @@ async function checkFoodScannerHealth() {
   }
 }
 
+// ============================================================================
+// UI Event Handlers for API Key Management
+// ============================================================================
+function handleSetApiKey() {
+  const input = document.getElementById("api-key-input");
+  const key = input ? input.value.trim() : '';
+  
+  if (!key) {
+    alert("Bitte gib einen gültigen API Key ein!");
+    return;
+  }
+  
+  // Basic validation - Gemini keys start with "AIza"
+  if (!key.startsWith('AIza')) {
+    const proceed = confirm("Warnung: Gemini API Keys beginnen normalerweise mit 'AIza'. Möchtest du trotzdem fortfahren?");
+    if (!proceed) return;
+  }
+  
+  setGeminiApiKey(key);
+  updateApiKeyStatus('set');
+  
+  // Clear the input field for security
+  if (input) {
+    input.value = '';
+  }
+  
+  alert("✅ API Key gesetzt!\n\nDer Key wird nur für diese Sitzung gespeichert und geht nach einem Reload verloren.");
+}
+
+function handleDeleteApiKey() {
+  if (!hasGeminiApiKey()) {
+    alert("Kein API Key gesetzt!");
+    return;
+  }
+  
+  const confirm_delete = confirm("Möchtest du den API Key wirklich löschen?\n\nDu musst ihn neu eingeben, um den Food Scanner zu nutzen.");
+  if (!confirm_delete) return;
+  
+  deleteGeminiApiKey();
+  alert("API Key wurde gelöscht.");
+}
+
 function bindProfile() {
   document.getElementById("camera-consent").addEventListener("change", (e) => {
     state.profile.cameraConsent = e.target.checked;
@@ -1819,7 +2120,22 @@ document.getElementById("camera-facing").addEventListener("change", async (e) =>
   }
 });
 document.getElementById("play-replay").addEventListener("click", playReplay);
-document.getElementById("test-food-scanner").addEventListener("click", checkFoodScannerHealth);
+document.getElementById("test-food-scanner").addEventListener("click", testFoodScanner);
+document.getElementById("set-api-key").addEventListener("click", handleSetApiKey);
+document.getElementById("delete-api-key").addEventListener("click", handleDeleteApiKey);
+document.getElementById("toggle-api-key-visibility").addEventListener("click", () => {
+  const input = document.getElementById("api-key-input");
+  const icon = document.getElementById("toggle-api-key-visibility");
+  if (input && icon) {
+    if (input.type === "password") {
+      input.type = "text";
+      icon.textContent = "🙈";
+    } else {
+      input.type = "password";
+      icon.textContent = "👁️";
+    }
+  }
+});
 
 hydrateProfile();
 bindProfile();
@@ -1830,8 +2146,8 @@ renderFoodLog();
 renderDashboard();
 updateReplayLog();
 
-// Check API status on page load
-checkFoodScannerHealth();
+// Initialize API key status on page load
+updateApiKeyStatus();
 
 window.addEventListener("beforeunload", () => {
   if (!cameraStream) return;
