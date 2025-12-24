@@ -90,12 +90,6 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Validate API key format (basic check - Google keys typically start with 'AIza')
-    // This is a soft check; if the format changes, the API will still fail gracefully
-    if (!apiKey.startsWith('AIza')) {
-      console.warn('API key format may be incorrect (expected to start with AIza)');
-    }
-
     // Validate required parameters
     if (!age || !gender || !height || !weight || !level || !goal || !frequency || !equipment) {
       return res.status(400).json({ 
