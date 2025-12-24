@@ -1505,13 +1505,15 @@ async function detectFoodWithAI(imageDataUrl) {
     const base64Data = matches[2];
 
     // Call Gemini API directly from client using user-provided key
+    // Use header for API key instead of query parameter for better security
     const apiKey = getGeminiApiKey();
-    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
     
     const geminiResponse = await fetch(geminiUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
       },
       body: JSON.stringify({
         contents: [{
@@ -1651,8 +1653,8 @@ async function detectFoodWithAI(imageDataUrl) {
   }
 }
 
-// API key management removed - keys are now stored securely on the server
-// This function is no longer needed as all API calls go through backend
+// Note: Old server-side implementation has been replaced with client-side API key management
+// Users now provide their own Gemini API keys which are stored only in memory (session-only)
 
 // ============================================================================
 // API Key Status Management
@@ -1726,12 +1728,13 @@ async function testFoodScanner() {
   
   try {
     const apiKey = getGeminiApiKey();
-    const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
+    const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
     
     const testResponse = await fetch(testUrl, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'x-goog-api-key': apiKey
       },
       body: JSON.stringify({
         contents: [{
