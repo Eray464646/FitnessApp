@@ -180,6 +180,62 @@
 
           <div class="card log-card">
             <div class="block-header">
+              <h3>Kalorienrechner</h3>
+              <span class="muted">Dein Tagesbedarf</span>
+            </div>
+            <form id="calorie-calculator-form" class="form-grid">
+              <label>
+                Geschlecht
+                <select id="calc-gender">
+                  <option value="männlich">Männlich</option>
+                  <option value="weiblich">Weiblich</option>
+                  <option value="divers">Divers</option>
+                </select>
+              </label>
+              <label>
+                Alter
+                <input type="number" id="calc-age" min="16" max="90" value="28" />
+              </label>
+              <label>
+                Körpergröße (cm)
+                <input type="number" id="calc-height" min="140" max="220" value="175" />
+              </label>
+              <label>
+                Gewicht (kg)
+                <input type="number" id="calc-weight" min="40" max="200" value="70" />
+              </label>
+              <label style="grid-column: 1 / -1;">
+                Körperliche Aktivität
+                <select id="calc-activity">
+                  <option value="sedentary">Kaum aktiv (Bürojob, wenig Bewegung)</option>
+                  <option value="light">1-2× Sport/Woche</option>
+                  <option value="moderate" selected>3-5× Sport/Woche</option>
+                  <option value="very">Täglich / sehr aktiv</option>
+                </select>
+              </label>
+              <label style="grid-column: 1 / -1;">
+                Ziel
+                <select id="calc-goal">
+                  <option value="bulk">Muskelaufbau</option>
+                  <option value="cut">Fettabbau</option>
+                  <option value="maintain" selected>Gewicht halten</option>
+                </select>
+              </label>
+              <button class="btn primary full" type="submit" style="grid-column: 1 / -1;">Berechnen</button>
+            </form>
+            <div id="calorie-results" class="nutrition-results"></div>
+          </div>
+
+          <div class="card log-card" id="nutrition-progress-card" style="display: none;">
+            <div class="block-header">
+              <h3>Dein Fortschritt</h3>
+              <span class="muted">Heutige Bilanz</span>
+            </div>
+            <div id="nutrition-progress" class="nutrition-progress-bars"></div>
+          </div>
+
+          <div class="card log-card">
+            <div class="block-header">
               <h3>Tagebuch</h3>
               <span class="muted">Kalorien & Makros</span>
             </div>

@@ -170,17 +170,18 @@ const defaultPlan = () => ({
 const state = (() => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { sets: [], foodEntries: [], plan: defaultPlan(), profile: {} };
+    if (!raw) return { sets: [], foodEntries: [], plan: defaultPlan(), profile: {}, nutritionGoals: null };
     const parsed = JSON.parse(raw);
     return {
       sets: parsed.sets || [],
       foodEntries: parsed.foodEntries || [],
       plan: parsed.plan || defaultPlan(),
-      profile: parsed.profile || {}
+      profile: parsed.profile || {},
+      nutritionGoals: parsed.nutritionGoals || null
     };
   } catch (e) {
     console.warn("Fallback to fresh state", e);
-    return { sets: [], foodEntries: [], plan: defaultPlan(), profile: {} };
+    return { sets: [], foodEntries: [], plan: defaultPlan(), profile: {}, nutritionGoals: null };
   }
 })();
 
@@ -1205,24 +1206,130 @@ function deleteSet(index) {
   setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
 }
 
+function deleteFood(index) {
+  if (!confirm('Möchtest du diese Mahlzeit wirklich löschen?')) {
+    return;
+  }
+  state.foodEntries.splice(index, 1);
+  persist();
+  renderFoodLog();
+  renderDashboard();
+  updateNutritionProgress();
+  setAIStatus("Mahlzeit gelöscht", "info");
+  setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
+}
+
+function initSwipeHandlers() {
+  const swipeableItems = document.querySelectorAll('.swipeable');
+  swipeableItems.forEach(item => {
+    let startX = 0;
+    let currentX = 0;
+    let isDragging = false;
+    
+    const handleTouchStart = (e) => {
+      startX = e.touches[0].clientX;
+      isDragging = true;
+      item.style.transition = 'none';
+    };
+    
+    const handleTouchMove = (e) => {
+      if (!isDragging) return;
+      currentX = e.touches[0].clientX;
+      const deltaX = currentX - startX;
+      
+      // Only allow left swipe
+      if (deltaX < 0) {
+        const distance = Math.max(-MAX_SWIPE_DISTANCE, deltaX);
+        item.style.transform = `translateX(${distance}px)`;
+      }
+    };
+    
+    const handleTouchEnd = () => {
+      if (!isDragging) return;
+      isDragging = false;
+      item.style.transition = 'transform 0.3s ease';
+      
+      const deltaX = currentX - startX;
+      
+      if (deltaX < -SWIPE_DELETE_THRESHOLD) {
+        // Swipe threshold reached - delete
+        const index = parseInt(item.dataset.index);
+        deleteFood(index);
+      } else {
+        // Reset position
+        item.style.transform = 'translateX(0)';
+      }
+    };
+    
+    item.addEventListener('touchstart', handleTouchStart);
+    item.addEventListener('touchmove', handleTouchMove);
+    item.addEventListener('touchend', handleTouchEnd);
+  });
+}
+
 function renderFoodLog() {
   const log = document.getElementById("food-log");
   if (!state.foodEntries.length) {
     log.innerHTML = `<div class="log-item muted">Noch keine Mahlzeiten erfasst.</div>`;
     return;
   }
-  log.innerHTML = state.foodEntries
-    .slice(-6)
+  
+  // Get today's entries for display
+  const today = todayKey();
+  const todayEntries = state.foodEntries.filter((f) => {
+    if (!f.timestamp) return false;
+    const timestamp = typeof f.timestamp === 'number'
+      ? new Date(f.timestamp).toISOString().slice(0, 10)
+      : typeof f.timestamp === 'string' ? f.timestamp.slice(0, 10) : '';
+    return timestamp === today;
+  });
+  
+  // Calculate totals
+  const totals = todayEntries.reduce((acc, entry) => ({
+    calories: acc.calories + (entry.calories || 0),
+    protein: acc.protein + (entry.protein || 0),
+    carbs: acc.carbs + (entry.carbs || 0),
+    fat: acc.fat + (entry.fat || 0)
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  
+  // Render entries with delete buttons
+  const entriesHTML = todayEntries
     .reverse()
-    .map(
-      (entry) => `
-      <div class="log-item">
-        <strong>${escapeHTML(entry.label)}</strong> • ${entry.calories} kcal<br/>
-        <span class="muted small">Protein ${entry.protein} g · KH ${entry.carbs} g · Fett ${entry.fat} g · ${new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+    .map((entry, reverseIdx) => {
+      const actualIndex = state.foodEntries.length - 1 - reverseIdx;
+      return `
+      <div class="log-item swipeable" data-index="${actualIndex}">
+        <div class="log-item-content">
+          <strong>${escapeHTML(entry.label)}</strong> • ${entry.calories} kcal<br/>
+          <span class="muted small">Protein ${entry.protein} g · KH ${entry.carbs} g · Fett ${entry.fat} g · ${new Date(entry.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+        </div>
+        <button class="delete-btn" onclick="deleteFood(${actualIndex})">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M2 4h12M5 4V3a1 1 0 011-1h4a1 1 0 011 1v1M13 4v9a1 1 0 01-1 1H4a1 1 0 01-1-1V4"/>
+          </svg>
+        </button>
       </div>
-    `
-    )
+      `;
+    })
     .join("");
+  
+  // Add totals section
+  const totalsHTML = todayEntries.length > 0 ? `
+    <div class="log-item totals-item">
+      <strong>Gesamtbilanz (heute)</strong><br/>
+      <span class="muted small">
+        ${totals.calories} kcal · 
+        Protein ${totals.protein} g · 
+        KH ${totals.carbs} g · 
+        Fett ${totals.fat} g
+      </span>
+    </div>
+  ` : '';
+  
+  log.innerHTML = entriesHTML + totalsHTML;
+  
+  // Initialize swipe handlers
+  initSwipeHandlers();
 }
 
 function computeStreak() {
@@ -1772,6 +1879,211 @@ async function handleFoodInput(event) {
   reader.readAsDataURL(file);
 }
 
+// ============================================================================
+// Calorie Calculator Functions
+// ============================================================================
+
+function calculateBMR(gender, age, weight, height) {
+  // Mifflin-St Jeor Equation
+  if (gender === 'männlich') {
+    return 10 * weight + 6.25 * height - 5 * age + 5;
+  } else if (gender === 'weiblich') {
+    return 10 * weight + 6.25 * height - 5 * age - 161;
+  } else {
+    // For 'divers', use average of both formulas
+    const male = 10 * weight + 6.25 * height - 5 * age + 5;
+    const female = 10 * weight + 6.25 * height - 5 * age - 161;
+    return (male + female) / 2;
+  }
+}
+
+function getActivityMultiplier(activity) {
+  const multipliers = {
+    'sedentary': 1.2,    // Kaum aktiv
+    'light': 1.375,      // 1-2× Sport/Woche
+    'moderate': 1.55,    // 3-5× Sport/Woche
+    'very': 1.725        // Täglich / sehr aktiv
+  };
+  return multipliers[activity] || 1.55;
+}
+
+function calculateMacros(tdee, goal) {
+  let calories = tdee;
+  let proteinPerKg = 1.8;
+  let fatPercent = 0.25;
+  
+  if (goal === 'bulk') {
+    // Muskelaufbau: +10-15% Kalorien
+    calories = Math.round(tdee * 1.12);
+    proteinPerKg = 2.0;
+    fatPercent = 0.25;
+  } else if (goal === 'cut') {
+    // Fettabbau: -15-20% Kalorien
+    calories = Math.round(tdee * 0.85);
+    proteinPerKg = 2.2;
+    fatPercent = 0.25;
+  } else {
+    // Gewicht halten
+    calories = Math.round(tdee);
+    proteinPerKg = 1.8;
+    fatPercent = 0.30;
+  }
+  
+  return { calories, proteinPerKg, fatPercent };
+}
+
+function handleCalorieCalculator(evt) {
+  evt.preventDefault();
+  
+  const gender = document.getElementById('calc-gender').value;
+  const age = parseInt(document.getElementById('calc-age').value);
+  const height = parseInt(document.getElementById('calc-height').value);
+  const weight = parseInt(document.getElementById('calc-weight').value);
+  const activity = document.getElementById('calc-activity').value;
+  const goal = document.getElementById('calc-goal').value;
+  
+  // Calculate BMR
+  const bmr = calculateBMR(gender, age, weight, height);
+  
+  // Calculate TDEE (Total Daily Energy Expenditure)
+  const tdee = bmr * getActivityMultiplier(activity);
+  
+  // Calculate macros based on goal
+  const macros = calculateMacros(tdee, goal);
+  
+  // Calculate actual macro values
+  const protein = Math.round(weight * macros.proteinPerKg);
+  const fat = Math.round((macros.calories * macros.fatPercent) / 9);
+  const carbs = Math.round((macros.calories - (protein * 4) - (fat * 9)) / 4);
+  
+  // Store nutrition goals
+  state.nutritionGoals = {
+    calories: macros.calories,
+    protein: protein,
+    fat: fat,
+    carbs: carbs,
+    goal: goal
+  };
+  persist();
+  
+  // Display results
+  const resultsDiv = document.getElementById('calorie-results');
+  const goalText = goal === 'bulk' ? 'Muskelaufbau' : goal === 'cut' ? 'Fettabbau' : 'Gewicht halten';
+  
+  resultsDiv.innerHTML = `
+    <div class="nutrition-summary">
+      <div class="nutrition-goal-header">
+        <strong>Deine tägliche Empfehlung</strong>
+        <span class="muted small">Ziel: ${goalText}</span>
+      </div>
+      <div class="nutrition-stats">
+        <div class="nutrition-stat">
+          <div class="stat-value">${macros.calories}</div>
+          <div class="stat-label">kcal pro Tag</div>
+        </div>
+        <div class="nutrition-stat">
+          <div class="stat-value">${protein} g</div>
+          <div class="stat-label">Protein</div>
+        </div>
+        <div class="nutrition-stat">
+          <div class="stat-value">${fat} g</div>
+          <div class="stat-label">Fett</div>
+        </div>
+        <div class="nutrition-stat">
+          <div class="stat-value">${carbs} g</div>
+          <div class="stat-label">Kohlenhydrate</div>
+        </div>
+      </div>
+      <p class="muted small" style="margin-top: 12px; font-style: italic;">
+        Diese Werte sind sportlich orientiert und praxisnah kalkuliert. 
+        ${goal === 'bulk' ? 'Fokus auf ausreichend Protein für Muskelaufbau und moderatem Kalorienüberschuss.' : ''}
+        ${goal === 'cut' ? 'Fokus auf hohe Proteinzufuhr zum Muskelerhalt bei moderatem Kaloriendefizit.' : ''}
+        ${goal === 'maintain' ? 'Ausgewogene Makroverteilung für nachhaltige Leistung und Erhalt.' : ''}
+      </p>
+    </div>
+  `;
+  
+  // Show and update progress card
+  updateNutritionProgress();
+  
+  setAIStatus('Kalorien berechnet', 'info');
+  setTimeout(() => setAIStatus('KI bereit', 'info'), 2000);
+}
+
+function updateNutritionProgress() {
+  if (!state.nutritionGoals) {
+    document.getElementById('nutrition-progress-card').style.display = 'none';
+    return;
+  }
+  
+  // Get today's food entries
+  const today = todayKey();
+  const todayEntries = state.foodEntries.filter((f) => {
+    if (!f.timestamp) return false;
+    const timestamp = typeof f.timestamp === 'number'
+      ? new Date(f.timestamp).toISOString().slice(0, 10)
+      : typeof f.timestamp === 'string' ? f.timestamp.slice(0, 10) : '';
+    return timestamp === today;
+  });
+  
+  // Calculate current totals
+  const current = todayEntries.reduce((acc, entry) => ({
+    calories: acc.calories + (entry.calories || 0),
+    protein: acc.protein + (entry.protein || 0),
+    carbs: acc.carbs + (entry.carbs || 0),
+    fat: acc.fat + (entry.fat || 0)
+  }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  
+  // Calculate percentages
+  const caloriePercent = Math.min(100, Math.round((current.calories / state.nutritionGoals.calories) * 100));
+  const proteinPercent = Math.min(100, Math.round((current.protein / state.nutritionGoals.protein) * 100));
+  const fatPercent = Math.min(100, Math.round((current.fat / state.nutritionGoals.fat) * 100));
+  const carbsPercent = Math.min(100, Math.round((current.carbs / state.nutritionGoals.carbs) * 100));
+  
+  // Display progress
+  const progressDiv = document.getElementById('nutrition-progress');
+  progressDiv.innerHTML = `
+    <div class="progress-item">
+      <div class="progress-header">
+        <span>Kalorien</span>
+        <span><strong>${current.calories}</strong> / ${state.nutritionGoals.calories} kcal</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill" style="width: ${caloriePercent}%"></div>
+      </div>
+    </div>
+    <div class="progress-item">
+      <div class="progress-header">
+        <span>Protein</span>
+        <span><strong>${current.protein} g</strong> / ${state.nutritionGoals.protein} g</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill protein" style="width: ${proteinPercent}%"></div>
+      </div>
+    </div>
+    <div class="progress-item">
+      <div class="progress-header">
+        <span>Fett</span>
+        <span><strong>${current.fat} g</strong> / ${state.nutritionGoals.fat} g</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill fat" style="width: ${fatPercent}%"></div>
+      </div>
+    </div>
+    <div class="progress-item">
+      <div class="progress-header">
+        <span>Kohlenhydrate</span>
+        <span><strong>${current.carbs} g</strong> / ${state.nutritionGoals.carbs} g</span>
+      </div>
+      <div class="progress-bar">
+        <div class="progress-fill carbs" style="width: ${carbsPercent}%"></div>
+      </div>
+    </div>
+  `;
+  
+  document.getElementById('nutrition-progress-card').style.display = 'block';
+}
+
 function saveFoodEntry() {
   if (!lastFoodDetection) {
     document.getElementById("food-details").innerHTML = "<p class='muted'>Bitte zuerst ein Foto wählen.</p>";
@@ -1787,6 +2099,7 @@ function saveFoodEntry() {
   persist();
   renderFoodLog();
   renderDashboard();
+  updateNutritionProgress();
 }
 
 function generatePlan(evt) {
@@ -1917,6 +2230,7 @@ document.getElementById("food-input").addEventListener("change", handleFoodInput
 document.getElementById("portion-slider").addEventListener("input", renderFoodDetection);
 document.getElementById("save-food").addEventListener("click", saveFoodEntry);
 document.getElementById("plan-form").addEventListener("submit", generatePlan);
+document.getElementById("calorie-calculator-form").addEventListener("submit", handleCalorieCalculator);
 document.getElementById("camera-facing").addEventListener("change", async (e) => {
   activeFacingMode = e.target.value;
   if (cameraStream) {
@@ -1934,6 +2248,7 @@ renderSets();
 renderFoodLog();
 renderDashboard();
 updateReplayLog();
+updateNutritionProgress();
 
 // Check backend health on page load
 checkBackendHealth();
@@ -1943,6 +2258,7 @@ window.addEventListener("beforeunload", () => {
   stopCamera();
 });
 
-// Make replaySet and deleteSet available globally for inline onclick handlers
+// Make replaySet, deleteSet and deleteFood available globally for inline onclick handlers
 window.replaySet = replaySet;
 window.deleteSet = deleteSet;
+window.deleteFood = deleteFood;
