@@ -1,6 +1,12 @@
 // Serverless function for food scanning using Gemini Vision API
 // This keeps API keys secure on the server side
-// Compatible with Vercel, Netlify, and similar platforms
+//
+// Platform Compatibility:
+// - Vercel: Supports CommonJS (module.exports) - RECOMMENDED
+// - Netlify: Supports CommonJS (module.exports)
+// - AWS Lambda: Supports CommonJS (module.exports)
+//
+// Note: Using CommonJS syntax for maximum compatibility across serverless platforms
 
 // Configuration constants
 const CONFIDENCE_THRESHOLD = 60;  // Minimum confidence percentage to accept detection

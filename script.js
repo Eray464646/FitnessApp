@@ -9,6 +9,7 @@ const LOST_FRAMES_THRESHOLD = 3;     // Number of frames before person is consid
 
 // Rep counting constants
 const AUTO_SAVE_REP_COUNT = 12;      // Auto-save set after this many reps
+const MIN_REP_INTERVAL_MS = 500;     // Minimum time between reps (ms) to prevent double-counting
 
 // Squat detection angles (in degrees)
 const SQUAT_DOWN_HIP_ANGLE = 100;    // Hip angle threshold for down position
@@ -57,6 +58,26 @@ const SKELETON_CONNECTIONS = [
   [11, 12], // hips
   [11, 13], [13, 15], // left leg
   [12, 14], [14, 16] // right leg
+];
+
+// MediaPipe Pose 33-point skeleton connections
+// Based on MediaPipe BlazePose topology
+const MEDIAPIPE_POSE_CONNECTIONS = [
+  [0, 1], [1, 2], [2, 3], [3, 7],  // Face
+  [0, 4], [4, 5], [5, 6], [6, 8],  // Face
+  [9, 10],                          // Mouth
+  [11, 12],                         // Shoulders
+  [11, 13], [13, 15],              // Left arm
+  [15, 17], [15, 19], [15, 21],    // Left hand
+  [17, 19],                         // Left hand
+  [12, 14], [14, 16],              // Right arm
+  [16, 18], [16, 20], [16, 22],    // Right hand
+  [18, 20],                         // Right hand
+  [11, 23], [12, 24], [23, 24],    // Torso
+  [23, 25], [25, 27],              // Left leg
+  [27, 29], [27, 31], [29, 31],    // Left foot
+  [24, 26], [26, 28],              // Right leg
+  [28, 30], [28, 32], [30, 32]     // Right foot
 ];
 
 // Get color based on confidence level
@@ -130,6 +151,7 @@ let skeletonCtx;
 let mediaPipePose = null;
 let lastPoseResults = null;
 let poseDetectionActive = false;
+let lastRepTimestamp = 0;  // Track last rep time for debouncing
 
 // Training states: WAITING -> READY -> ACTIVE <-> PAUSED -> STOPPED
 const TrainingState = {
@@ -462,23 +484,28 @@ function countSquatReps(landmarks) {
     document.getElementById("training-feedback").innerHTML =
       "<p class='title'>Abwärtsbewegung</p><p class='muted'>Gehe tiefer für volle ROM</p>";
   } else if (motionTracker.squatPhase === "down" && hipAngle > SQUAT_UP_HIP_ANGLE && kneeAngle > SQUAT_UP_KNEE_ANGLE) {
-    // Entering up phase - count rep
-    motionTracker.squatPhase = "up";
-    repCount++;
-    document.getElementById("rep-count").textContent = repCount;
-    document.getElementById("training-feedback").innerHTML =
-      "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gute Form!</p>";
-    
-    // Provide technique feedback
-    if (motionTracker.lastROM === "voll") {
-      motionTracker.lastQuality = 90 + Math.floor(Math.random() * 10);
-    } else {
-      motionTracker.lastQuality = 70 + Math.floor(Math.random() * 15);
-    }
-    
-    // Auto-save at 12 reps
-    if (repCount >= AUTO_SAVE_REP_COUNT) {
-      saveSet(true);
+    // Entering up phase - check debouncing before counting rep
+    const now = Date.now();
+    if (now - lastRepTimestamp >= MIN_REP_INTERVAL_MS) {
+      // Count rep
+      motionTracker.squatPhase = "up";
+      repCount++;
+      lastRepTimestamp = now;  // Update timestamp for debouncing
+      document.getElementById("rep-count").textContent = repCount;
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gute Form!</p>";
+      
+      // Provide technique feedback
+      if (motionTracker.lastROM === "voll") {
+        motionTracker.lastQuality = 90 + Math.floor(Math.random() * 10);
+      } else {
+        motionTracker.lastQuality = 70 + Math.floor(Math.random() * 15);
+      }
+      
+      // Auto-save at 12 reps
+      if (repCount >= AUTO_SAVE_REP_COUNT) {
+        saveSet(true);
+      }
     }
   }
   
@@ -509,16 +536,21 @@ function countPushupReps(landmarks) {
     document.getElementById("training-feedback").innerHTML =
       "<p class='title'>Abwärtsbewegung</p><p class='muted'>Halte den Rücken gerade</p>";
   } else if (motionTracker.squatPhase === "down" && elbowAngle > PUSHUP_UP_ELBOW_ANGLE) {
-    motionTracker.squatPhase = "up";
-    repCount++;
-    document.getElementById("rep-count").textContent = repCount;
-    document.getElementById("training-feedback").innerHTML =
-      "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gut gemacht!</p>";
-    
-    motionTracker.lastQuality = 85 + Math.floor(Math.random() * 15);
-    
-    if (repCount >= AUTO_SAVE_REP_COUNT) {
-      saveSet(true);
+    // Check debouncing before counting rep
+    const now = Date.now();
+    if (now - lastRepTimestamp >= MIN_REP_INTERVAL_MS) {
+      motionTracker.squatPhase = "up";
+      repCount++;
+      lastRepTimestamp = now;  // Update timestamp for debouncing
+      document.getElementById("rep-count").textContent = repCount;
+      document.getElementById("training-feedback").innerHTML =
+        "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gut gemacht!</p>";
+      
+      motionTracker.lastQuality = 85 + Math.floor(Math.random() * 15);
+      
+      if (repCount >= AUTO_SAVE_REP_COUNT) {
+        saveSet(true);
+      }
     }
   }
 }
@@ -582,20 +614,8 @@ function drawMediaPipeSkeleton(results) {
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
   
-  // Get MediaPipe POSE_CONNECTIONS from global scope
-  // If not available, log actionable error message and skip connection drawing
-  if (!window.POSE_CONNECTIONS) {
-    console.error(
-      'MediaPipe POSE_CONNECTIONS not loaded. Skeleton connections will not be drawn.\n' +
-      'Troubleshooting:\n' +
-      '1. Ensure the MediaPipe drawing utils script is loaded in index.html\n' +
-      '2. Check browser console for script loading errors\n' +
-      '3. Verify network connectivity to cdn.jsdelivr.net'
-    );
-    // Still draw landmarks below even if connections are missing
-  }
-  
-  const connections = window.POSE_CONNECTIONS || [];
+  // Use our defined MediaPipe pose connections
+  const connections = MEDIAPIPE_POSE_CONNECTIONS;
   
   // Draw connections
   for (const [startIdx, endIdx] of connections) {
