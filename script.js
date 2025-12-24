@@ -35,10 +35,17 @@ function hasGeminiApiKey() {
 }
 
 // ============================================================================
+// Food Detection Configuration
+// ============================================================================
+const FOOD_CONFIDENCE_THRESHOLD = 40;  // Minimum confidence % to accept detection (lowered for better detection)
+const MAX_IMAGE_WIDTH = 1024;           // Max width for image compression
+const IMAGE_COMPRESSION_QUALITY = 0.8;  // JPEG compression quality
+
+// ============================================================================
 // Image Compression Utility
 // ============================================================================
 // Compress and resize image to reduce payload size and avoid timeouts
-async function compressImage(dataUrl, maxWidth = 1024, quality = 0.8) {
+async function compressImage(dataUrl, maxWidth = MAX_IMAGE_WIDTH, quality = IMAGE_COMPRESSION_QUALITY) {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => {
@@ -1548,7 +1555,7 @@ async function detectFoodWithAI(imageDataUrl) {
     const base64Data = matches[2];
     
     // Validate mime type
-    if (!['image/jpeg', 'image/png', 'image/jpg'].includes(mimeType)) {
+    if (!['image/jpeg', 'image/png'].includes(mimeType)) {
       throw new Error('Ungültiges Bildformat. Nur JPEG und PNG werden unterstützt.');
     }
 
@@ -1625,14 +1632,13 @@ Schätze realistische Nährwerte für typische Portionen.`;
     result = parseGeminiResponse(result);
 
     // Apply confidence gating
-    const CONFIDENCE_THRESHOLD = 40;  // Lowered threshold to detect more foods
     if (result.detected) {
       // Calculate average confidence from items
       const avgConfidence = result.items && result.items.length > 0
         ? result.items.reduce((sum, item) => sum + (item.confidence || 70), 0) / result.items.length
         : result.confidence || 70;
       
-      if (avgConfidence < CONFIDENCE_THRESHOLD) {
+      if (avgConfidence < FOOD_CONFIDENCE_THRESHOLD) {
         result.detected = false;
         result.message = 'Unsicher – bitte bestätigen oder klareres Foto verwenden';
         result.lowConfidence = true;

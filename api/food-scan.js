@@ -21,6 +21,11 @@ const ALLOWED_ORIGINS = [
 ];
 
 // Simple rate limiting (in-memory, resets on function cold start)
+// NOTE: This is a basic implementation suitable for light usage.
+// For production with heavy traffic, consider using:
+// - Redis/Upstash for persistent rate limiting
+// - Vercel Edge Config for distributed state
+// - External rate limiting service (e.g., Cloudflare)
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 10; // Max 10 requests per minute per IP
@@ -129,7 +134,7 @@ module.exports = async (req, res) => {
     }
 
     // Validate mime type
-    if (!['image/jpeg', 'image/png', 'image/jpg'].includes(imageMimeType)) {
+    if (!['image/jpeg', 'image/png'].includes(imageMimeType)) {
       return res.status(400).json({ 
         error: 'Invalid image type',
         detected: false,
