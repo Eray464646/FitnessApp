@@ -9,8 +9,8 @@
   --shadow: 0 0 15px rgba(255, 255, 255, 0.15); /* Reduced opacity from 0.3 to 0.15 */
   --radius: 24px; /* rounded-3xl */
   --border-color: rgba(55, 65, 81, 0.3); /* border-gray-700/30 - reduced for less clutter */
-  --nav-safe-area: 120px; /* Safe area padding for floating navigation */
-  --nav-safe-area-mobile: 100px; /* Safe area padding for mobile */
+  --nav-safe-area: 128px; /* Safe area padding for floating navigation - increased for better spacing */
+  --nav-safe-area-mobile: 112px; /* Safe area padding for mobile - increased for better spacing */
   --nav-background: rgba(17, 24, 39, 0.9); /* Navigation background */
   --nav-inactive: #6b7280; /* Inactive navigation button color */
   --touch-target-height: 48px; /* Minimum touch target height for accessibility */
@@ -39,10 +39,10 @@ body {
 main {
   flex: 1;
   padding: 16px;
-  padding-bottom: var(--nav-safe-area); /* pb-24 for safe area */
+  padding-bottom: var(--nav-safe-area); /* Safe area padding - increased for better spacing */
   display: flex;
   flex-direction: column;
-  gap: 24px; /* Increased spacing between sections */
+  gap: 32px; /* Increased spacing between sections from 24px */
 }
 
 .top-bar {
@@ -146,7 +146,7 @@ main {
 
 .card-grid {
   display: grid;
-  gap: 16px; /* Increased from 12px */
+  gap: 24px; /* Increased from 16px for more breathing room */
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   margin: 0; /* Removed margin, using gap from main instead */
 }
@@ -218,7 +218,7 @@ main {
 
 .activity-list {
   display: grid;
-  gap: 12px; /* Increased from 8px */
+  gap: 24px; /* Increased from 12px for cleaner UI */
 }
 
 .activity-item {
@@ -871,7 +871,7 @@ p {
     padding: 10px 4px; /* Even tighter horizontal padding */
   }
   main {
-    padding-bottom: var(--nav-safe-area-mobile);
+    padding-bottom: var(--nav-safe-area-mobile); /* Mobile safe area padding */
   }
   .card-grid {
     grid-template-columns: 1fr;
