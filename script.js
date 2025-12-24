@@ -12,10 +12,15 @@ let backendHealthy = false;  // Track if backend is available
 // Food Detection Configuration
 // ============================================================================
 const FOOD_CONFIDENCE_THRESHOLD = 40;  // Minimum confidence % to accept detection (lowered for better detection)
-const FOOD_NAME_CONFIDENCE_THRESHOLD = 80;  // Minimum confidence % to use actual food names (vs generic "Essen")
 const DEFAULT_FOOD_CONFIDENCE = 70;  // Default confidence when not provided by AI
 const MAX_IMAGE_WIDTH = 1024;           // Max width for image compression
 const IMAGE_COMPRESSION_QUALITY = 0.8;  // JPEG compression quality
+const MAX_FOOD_NAME_LENGTH = 40;        // Maximum length for food name display
+
+// Food name extraction constants
+const UNKNOWN_FOOD_LABEL = 'Unbekanntes Lebensmittel';  // Backend fallback label to ignore
+const ADDITIONAL_ITEMS_SUFFIX = ' u.a.';  // Suffix for truncated multi-item lists (German: "und andere")
+const VALID_FOOD_NAME_CHARS_REGEX = /^[^a-zA-Z0-9äöüÄÖÜß]+$/;  // Pattern to reject punctuation-only names
 
 // ============================================================================
 // Image Compression Utility
@@ -48,6 +53,150 @@ async function compressImage(dataUrl, maxWidth = MAX_IMAGE_WIDTH, quality = IMAG
     img.onerror = () => reject(new Error('Failed to load image'));
     img.src = dataUrl;
   });
+}
+
+// ============================================================================
+// Food Name Extraction Utility
+// ============================================================================
+/**
+ * Extracts a valid, usable food name from the AI response.
+ * Tries multiple strategies in order of preference:
+ * 1. Use pre-built label from response
+ * 2. Extract from items array
+ * 3. Try alternative fields (name, title, description)
+ * 4. Derive short name from description/notes
+ * 5. Fall back to "Essen" only if nothing valid found
+ * 
+ * @param {Object} result - The AI response object
+ * @returns {Object} - { name: string, items: string[] }
+ */
+function extractFoodName(result) {
+  if (!result) {
+    return { name: 'Essen', items: ['Essen'] };
+  }
+
+  /**
+   * Validates and sanitizes a potential food name
+   * @param {*} value - The value to validate
+   * @returns {string|null} - Sanitized name or null if invalid
+   */
+  function validateAndSanitize(value) {
+    // Check if value exists and is a string
+    if (!value || typeof value !== 'string') {
+      return null;
+    }
+    
+    // Trim whitespace
+    const trimmed = value.trim();
+    
+    // Reject empty strings
+    if (trimmed.length === 0) {
+      return null;
+    }
+    
+    // Reject strings that are just "undefined", "null", etc.
+    const lower = trimmed.toLowerCase();
+    if (lower === 'undefined' || lower === 'null' || lower === 'none') {
+      return null;
+    }
+    
+    // Reject strings that are only punctuation or special characters
+    if (VALID_FOOD_NAME_CHARS_REGEX.test(trimmed)) {
+      return null;
+    }
+    
+    // Truncate to max length if needed
+    if (trimmed.length > MAX_FOOD_NAME_LENGTH) {
+      const truncated = trimmed.substring(0, MAX_FOOD_NAME_LENGTH).trim();
+      return truncated + '...';
+    }
+    
+    return trimmed;
+  }
+
+  /**
+   * Extracts first noun phrase or first line from a description
+   * @param {string} description - The description text
+   * @returns {string|null} - Short name or null
+   */
+  function deriveShortName(description) {
+    if (!description || typeof description !== 'string') {
+      return null;
+    }
+    
+    const trimmed = description.trim();
+    
+    // Try to get first sentence or line
+    const firstSentence = trimmed.split(/[.\n]/)[0].trim();
+    
+    if (firstSentence.length > 0 && firstSentence.length <= MAX_FOOD_NAME_LENGTH) {
+      return validateAndSanitize(firstSentence);
+    }
+    
+    // Try to get first few words
+    const words = trimmed.split(/\s+/).slice(0, 5).join(' ');
+    return validateAndSanitize(words);
+  }
+
+  // Strategy 1: Use pre-built label from backend if it exists and is valid
+  if (result.label) {
+    const sanitized = validateAndSanitize(result.label);
+    if (sanitized && sanitized !== UNKNOWN_FOOD_LABEL) {
+      // Extract individual items if available
+      const items = result.items && Array.isArray(result.items) && result.items.length > 0
+        ? result.items.map(i => typeof i === 'string' ? i : i?.label).filter(Boolean)
+        : [sanitized];
+      return { name: sanitized, items };
+    }
+  }
+
+  // Strategy 2: Extract from items array
+  if (result.items && Array.isArray(result.items) && result.items.length > 0) {
+    const itemLabels = result.items
+      .map(item => {
+        if (typeof item === 'string') {
+          return validateAndSanitize(item);
+        }
+        if (item && typeof item === 'object') {
+          return validateAndSanitize(item.label || item.name || item.title);
+        }
+        return null;
+      })
+      .filter(Boolean);
+    
+    if (itemLabels.length > 0) {
+      const name = itemLabels.join(', ');
+      const truncatedName = name.length > MAX_FOOD_NAME_LENGTH
+        ? itemLabels[0] + (itemLabels.length > 1 ? ADDITIONAL_ITEMS_SUFFIX : '')
+        : name;
+      return { name: truncatedName, items: itemLabels };
+    }
+  }
+
+  // Strategy 3: Try alternative top-level fields
+  const alternativeFields = ['name', 'title', 'food', 'foodName', 'dish'];
+  for (const field of alternativeFields) {
+    if (result[field]) {
+      const sanitized = validateAndSanitize(result[field]);
+      if (sanitized) {
+        return { name: sanitized, items: [sanitized] };
+      }
+    }
+  }
+
+  // Strategy 4: Derive from description/notes
+  const descriptions = [result.description, result.notes, result.reasoning, result.message];
+  for (const desc of descriptions) {
+    if (desc) {
+      const derived = deriveShortName(desc);
+      if (derived) {
+        return { name: derived, items: [derived] };
+      }
+    }
+  }
+
+  // Strategy 5: Last resort fallback
+  return { name: 'Essen', items: ['Essen'] };
 }
 
 // ============================================================================
@@ -1728,24 +1877,9 @@ async function detectFoodWithAI(imageDataUrl) {
       ? result.items.reduce((sum, item) => sum + (item.confidence || DEFAULT_FOOD_CONFIDENCE), 0) / result.items.length
       : firstItem.confidence || DEFAULT_FOOD_CONFIDENCE;
     
-    // Apply confidence threshold for food names (80%)
-    // If confidence is high enough, use actual food names; otherwise use generic "Essen"
-    let foodLabel;
-    let itemLabels = [];
-    
-    if (avgConfidence >= FOOD_NAME_CONFIDENCE_THRESHOLD && result.items && result.items.length > 0) {
-      // High confidence - use actual food names
-      // Filter out empty/undefined labels
-      itemLabels = result.items
-        .map(i => i.label)
-        .filter(label => label && typeof label === 'string' && label.trim().length > 0);
-      
-      foodLabel = itemLabels.length > 0 ? itemLabels.join(', ') : 'Essen';
-    } else {
-      // Low confidence - use generic name
-      foodLabel = 'Essen';
-      itemLabels = ['Essen'];
-    }
+    // Extract food name using robust extraction logic
+    // This handles all edge cases: missing names, low confidence, malformed data, etc.
+    const { name: foodLabel, items: itemLabels } = extractFoodName(result);
     
     return {
       label: foodLabel,
