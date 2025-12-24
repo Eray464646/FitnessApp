@@ -1179,8 +1179,18 @@ function renderFoodLog() {
 
 function computeStreak() {
   const days = new Set();
-  state.sets.forEach((s) => days.add(s.timestamp.slice(0, 10)));
-  state.foodEntries.forEach((f) => days.add(f.timestamp.slice(0, 10)));
+  state.sets.forEach((s) => {
+    const dateStr = typeof s.timestamp === 'number'
+      ? new Date(s.timestamp).toISOString().slice(0, 10)
+      : s.timestamp.slice(0, 10);
+    days.add(dateStr);
+  });
+  state.foodEntries.forEach((f) => {
+    const dateStr = typeof f.timestamp === 'number'
+      ? new Date(f.timestamp).toISOString().slice(0, 10)
+      : f.timestamp.slice(0, 10);
+    days.add(dateStr);
+  });
   let streak = 0;
   let cursor = new Date();
   for (;;) {
@@ -1197,7 +1207,12 @@ function computeStreak() {
 
 function renderDashboard() {
   const today = todayKey();
-  const todaySets = state.sets.filter((s) => s.timestamp.startsWith(today));
+  const todaySets = state.sets.filter((s) => {
+    const timestamp = typeof s.timestamp === 'number' 
+      ? new Date(s.timestamp).toISOString().slice(0, 10)
+      : s.timestamp.startsWith ? s.timestamp.slice(0, 10) : '';
+    return timestamp === today;
+  });
   const reps = todaySets.reduce((sum, s) => sum + s.reps, 0);
   const tech =
     todaySets.length === 0
@@ -1206,7 +1221,12 @@ function renderDashboard() {
   document.getElementById("today-reps").textContent = reps;
   document.getElementById("tech-score").textContent = `Technik-Score: ${tech}%`;
 
-  const todayFood = state.foodEntries.filter((f) => f.timestamp.startsWith(today));
+  const todayFood = state.foodEntries.filter((f) => {
+    const timestamp = typeof f.timestamp === 'number'
+      ? new Date(f.timestamp).toISOString().slice(0, 10)
+      : f.timestamp.startsWith ? f.timestamp.slice(0, 10) : '';
+    return timestamp === today;
+  });
   const calories = todayFood.reduce((sum, f) => sum + f.calories, 0);
   const protein = todayFood.reduce((sum, f) => sum + f.protein, 0);
   document.getElementById("today-calories").textContent = calories;
