@@ -1666,16 +1666,13 @@ async function detectFoodWithAI(imageDataUrl) {
 async function checkBackendHealth() {
   try {
     const response = await fetch(`${VERCEL_BACKEND_URL}/api/food-scan/health`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
+      method: 'GET'
     });
     
     if (!response.ok) {
       console.warn('Backend health check failed:', response.status);
       backendHealthy = false;
-      setAIStatus("Backend nicht erreichbar", "warn");
+      setAIStatus("Backend-Verbindung fehlgeschlagen", "warn");
       return false;
     }
     
@@ -1695,7 +1692,7 @@ async function checkBackendHealth() {
   } catch (error) {
     console.error('Backend health check error:', error);
     backendHealthy = false;
-    setAIStatus("Backend nicht erreichbar", "warn");
+    setAIStatus("Backend nicht verfügbar", "warn");
     return false;
   }
 }
