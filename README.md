@@ -57,6 +57,12 @@ Interaktive mobile Web-App für KI-gestützte Bewegungserkennung mit **MediaPipe
 #### **Pose Replay & Analyse**
 - Jeder Satz speichert alle erfassten Frames mit vollständigen Keypoint-Daten
 - Replay zeigt 2D-Skeleton-Visualisierung mit farbcodierten Keypoints
+- **Interaktive Steuerung:**
+  - Klickbarer Timeline-Scrubber zum Springen zu beliebigen Frames
+  - Play/Pause-Button für automatische Wiedergabe
+  - Geschwindigkeitsauswahl (0.5x, 1x, 1.5x, 2x)
+  - Schrittweise Navigation (-1 / +1 Frame)
+  - Touch-optimiert für mobile Geräte
 - Frame-by-Frame-Durchlauf mit Fortschrittsbalken
 - Qualitätsmetriken und Form-Feedback
 - **Löschfunktion** mit Bestätigungsdialog
@@ -64,11 +70,16 @@ Interaktive mobile Web-App für KI-gestützte Bewegungserkennung mit **MediaPipe
 #### **Food Scan (KI-gestützt & sicher)**
 - Backend-API-Endpoint (`/api/food-scan`) für sichere Vision-Aufrufe
 - Google Gemini Vision API für Lebensmittelerkennung
+- **API-Status-Überwachung:**
+  - Health Check Endpoint (`/api/food-scan-health`)
+  - Visueller Status-Indikator im Profil
+  - "Food Scanner testen" Button für manuelle Überprüfung
+  - Klare Fehlermeldungen (Konfiguration, Auth, Quota, etc.)
 - **Confidence Gating:** Nur Detektionen über 60% Confidence werden akzeptiert
+- Unterscheidung zwischen "Kein Essen" und "Unsicher – bitte bestätigen"
 - Portion-Slider für Anpassung der Mengen
 - Automatische Makro- und Kalorienschätzung
 - Debug-Logging im Development-Modus
-- Klare Fehlermeldungen bei API-Problemen
 
 #### **KI-Trainingsplanung**
 - Formular für Ziel, Level, Frequenz und Equipment
@@ -119,10 +130,21 @@ WAITING → READY → ACTIVE ↔ PAUSED → STOPPED
 ### 🧪 Testing
 
 #### Food Scan Test
-1. Navigiere zur Ernährung-Sektion
-2. Lade ein Bananen-Bild hoch
-3. ✅ Erwartung: "Banane" wird erkannt mit Makros und Kalorien
-4. ❌ NICHT: "Kein Essen erkannt"
+1. Navigiere zur Profil-Sektion
+2. Klicke auf "🔍 Food Scanner testen"
+3. ✅ Erwartung: Status zeigt "Food Scanner betriebsbereit" (grün)
+4. Navigiere zur Ernährung-Sektion
+5. Lade ein Bananen-Bild hoch
+6. ✅ Erwartung: "Banane" wird erkannt mit Makros und Kalorien
+7. ❌ NICHT: "Kein Essen erkannt" bei offensichtlichen Lebensmitteln
+
+#### API Key Status Test
+1. Navigiere zur Profil-Sektion
+2. Prüfe den "Food Scanner Status" im KI-Einstellungen-Bereich
+3. ✅ Erwartung: Zeigt aktuellen Status (Konfiguriert/Nicht konfiguriert/Fehler)
+4. Klicke "🔍 Food Scanner testen"
+5. ✅ Erwartung: Status aktualisiert sich mit klarer Fehlermeldung oder Erfolg
+6. ✅ Erwartung: Zeigt "Letzter Test" Timestamp
 
 #### Pose Detection Test
 1. Navigiere zur Training-Sektion
@@ -137,12 +159,22 @@ WAITING → READY → ACTIVE ↔ PAUSED → STOPPED
 2. Wechsle zwischen Front-/Rückkamera
 3. ✅ Erwartung: Kamera wechselt, Pose-Detection läuft weiter
 
-#### Saved Session Test
+#### Saved Session Test & Replay Controls
 1. Führe ein Training durch und speichere Satz
-2. Tippe auf gespeicherten Satz
-3. ✅ Erwartung: Details-Ansicht mit Replay-Button
-4. ✅ Erwartung: Skeleton-Replay funktioniert
-5. ✅ Erwartung: Löschen-Button mit Bestätigung
+2. Tippe auf "🔄 Replay anzeigen" beim gespeicherten Satz
+3. ✅ Erwartung: Replay öffnet sich mit Skeleton-Visualisierung
+4. ✅ Erwartung: Scrubber (Timeline) ist vorhanden und funktioniert
+5. Ziehe den Scrubber zu verschiedenen Positionen
+6. ✅ Erwartung: Frame springt zur gewählten Position
+7. Klicke "▶️ Play"
+8. ✅ Erwartung: Replay spielt automatisch ab, Button ändert zu "⏸️ Pause"
+9. Wähle "2x" in der Geschwindigkeitsauswahl
+10. ✅ Erwartung: Replay läuft doppelt so schnell
+11. Teste "⏮️ -1" und "+1 ⏭️" Buttons
+12. ✅ Erwartung: Frame springt vor/zurück
+13. Klicke "✕ Schließen"
+14. ✅ Erwartung: Replay schließt sich
+15. ✅ Erwartung: Löschen-Button mit Bestätigung funktioniert
 
 ### 📝 Deployment-Anleitung
 
