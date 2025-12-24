@@ -815,7 +815,6 @@ function replaySet(setIndex) {
   }
   
   const container = document.getElementById("replay-log");
-  clearInterval(replayTimer);
   
   const frames = set.frames;
   
@@ -1180,16 +1179,18 @@ function renderFoodLog() {
 function computeStreak() {
   const days = new Set();
   state.sets.forEach((s) => {
+    if (!s.timestamp) return;
     const dateStr = typeof s.timestamp === 'number'
       ? new Date(s.timestamp).toISOString().slice(0, 10)
-      : s.timestamp.slice(0, 10);
-    days.add(dateStr);
+      : typeof s.timestamp === 'string' ? s.timestamp.slice(0, 10) : '';
+    if (dateStr) days.add(dateStr);
   });
   state.foodEntries.forEach((f) => {
+    if (!f.timestamp) return;
     const dateStr = typeof f.timestamp === 'number'
       ? new Date(f.timestamp).toISOString().slice(0, 10)
-      : f.timestamp.slice(0, 10);
-    days.add(dateStr);
+      : typeof f.timestamp === 'string' ? f.timestamp.slice(0, 10) : '';
+    if (dateStr) days.add(dateStr);
   });
   let streak = 0;
   let cursor = new Date();
@@ -1208,9 +1209,10 @@ function computeStreak() {
 function renderDashboard() {
   const today = todayKey();
   const todaySets = state.sets.filter((s) => {
+    if (!s.timestamp) return false;
     const timestamp = typeof s.timestamp === 'number' 
       ? new Date(s.timestamp).toISOString().slice(0, 10)
-      : s.timestamp.startsWith ? s.timestamp.slice(0, 10) : '';
+      : typeof s.timestamp === 'string' ? s.timestamp.slice(0, 10) : '';
     return timestamp === today;
   });
   const reps = todaySets.reduce((sum, s) => sum + s.reps, 0);
@@ -1222,9 +1224,10 @@ function renderDashboard() {
   document.getElementById("tech-score").textContent = `Technik-Score: ${tech}%`;
 
   const todayFood = state.foodEntries.filter((f) => {
+    if (!f.timestamp) return false;
     const timestamp = typeof f.timestamp === 'number'
       ? new Date(f.timestamp).toISOString().slice(0, 10)
-      : f.timestamp.startsWith ? f.timestamp.slice(0, 10) : '';
+      : typeof f.timestamp === 'string' ? f.timestamp.slice(0, 10) : '';
     return timestamp === today;
   });
   const calories = todayFood.reduce((sum, f) => sum + f.calories, 0);
