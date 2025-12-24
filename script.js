@@ -1,38 +1,12 @@
 const STORAGE_KEY = "fitnessAppState";
 
 // ============================================================================
-// API Key Management (In-Memory Only - Session Only)
+// Vercel Backend Configuration
 // ============================================================================
-// SECURITY: API key is stored ONLY in memory and NEVER persisted
-// Key is cleared on page refresh, tab close, or explicit deletion
-let userGeminiApiKey = null;  // In-memory storage only
-
-// Configuration for API mode (direct or proxy)
-// Direct: Call Gemini API directly from browser (works locally, fails on GitHub Pages due to CORS)
-// Proxy: Use serverless proxy endpoint (works on GitHub Pages)
-let apiMode = 'auto';  // 'auto', 'direct', or 'proxy'
-let detectedMode = null;  // Stores the mode that was successfully used
-
-function setGeminiApiKey(key) {
-  userGeminiApiKey = key ? key.trim() : null;
-}
-
-function getGeminiApiKey() {
-  return userGeminiApiKey;
-}
-
-function deleteGeminiApiKey() {
-  userGeminiApiKey = null;
-  // Also clear any cached food detection results
-  lastFoodDetection = null;
-  document.getElementById("food-preview").src = "";
-  document.getElementById("food-details").innerHTML = "<p class='muted'>API Key gelöscht. Bitte neuen Key eingeben.</p>";
-  updateApiKeyStatus();
-}
-
-function hasGeminiApiKey() {
-  return userGeminiApiKey !== null && userGeminiApiKey.length > 0;
-}
+// All AI functionality now runs through the Vercel backend
+// No API keys needed in the frontend
+const VERCEL_BACKEND_URL = 'https://fit-vercel.vercel.app';
+let backendHealthy = false;  // Track if backend is available
 
 // ============================================================================
 // Food Detection Configuration
@@ -1528,13 +1502,13 @@ function saveSet(auto = false) {
 async function detectFoodWithAI(imageDataUrl) {
   setAIStatus("Analysiere Bild...", "info");
   
-  // Check if user has provided API key
-  if (!hasGeminiApiKey()) {
-    setAIStatus("API Key fehlt", "warn");
+  // Check if backend is healthy
+  if (!backendHealthy) {
+    setAIStatus("Backend nicht verfügbar", "warn");
     document.getElementById("food-details").innerHTML = `
       <p class='muted' style='color: #b91c1c;'>
-        <strong>Bitte API Key eingeben</strong><br/>
-        <span class='small'>Gehe zu Profil → KI-Einstellungen und gib deinen Gemini API Key ein.</span>
+        <strong>Backend nicht erreichbar</strong><br/>
+        <span class='small'>Stelle sicher, dass das Vercel-Backend verfügbar ist.</span>
       </p>
     `;
     return null;
@@ -1545,91 +1519,57 @@ async function detectFoodWithAI(imageDataUrl) {
     setAIStatus("Komprimiere Bild...", "info");
     const compressedDataUrl = await compressImage(imageDataUrl, 1024, 0.8);
     
-    // Extract base64 data and MIME type from data URL
-    const matches = compressedDataUrl.match(/^data:(.+);base64,(.+)$/);
+    // Validate that we have a proper data URL
+    if (!compressedDataUrl.startsWith('data:image/')) {
+      throw new Error('Ungültiges Bildformat');
+    }
+
+    // Extract MIME type from data URL (keep full data URL for backend)
+    const matches = compressedDataUrl.match(/^data:(.+);base64,/);
     if (!matches) {
       throw new Error('Ungültiges Bildformat');
     }
 
     const mimeType = matches[1] || 'image/jpeg';
-    const base64Data = matches[2];
     
     // Validate mime type
     if (!['image/jpeg', 'image/png'].includes(mimeType)) {
       throw new Error('Ungültiges Bildformat. Nur JPEG und PNG werden unterstützt.');
     }
 
-    setAIStatus("Sende Anfrage...", "info");
+    setAIStatus("Sende Anfrage an Backend...", "info");
 
-    // Improved prompt for broad food recognition
-    const prompt = `Analysiere dieses Bild und identifiziere ALLE Lebensmittel und Getränke.
+    // Call Vercel backend with POST request
+    const response = await fetch(`${VERCEL_BACKEND_URL}/api/food-scan`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        imageBase64: compressedDataUrl,  // Send complete data URL
+        mimeType: mimeType
+      })
+    });
 
-WICHTIG: 
-- Erkenne Lebensmittel aus ALLEN Kategorien: Obst, Gemüse, Fleisch, Fisch, Reis, Pasta, Brot, Milchprodukte, Snacks, Desserts, Getränke
-- Bei mehreren Lebensmitteln auf einem Teller/Foto: Liste ALLE auf
-- Bei gemischten Gerichten (z.B. Bowl, Teller, Salat, Sandwich, Pasta-Gericht): Erkenne die Hauptkomponenten
-- Wenn ein Lebensmittel offensichtlich zu sehen ist, setze detected=true, auch bei niedriger Confidence
-- Nur wenn definitiv KEIN Essen im Bild ist, setze detected=false
-
-Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in folgendem Format (kein Markdown, kein Text drumherum):
-
-{
-  "detected": true,
-  "items": [
-    {
-      "label": "Lebensmittel 1",
-      "confidence": 85,
-      "portion": {"unit": "g", "value": 120},
-      "macros": {"protein": 1.3, "fat": 0.4, "carbs": 27.0},
-      "calories": 105
-    }
-  ],
-  "totals": {"calories": 105, "protein": 1.3, "fat": 0.4, "carbs": 27.0},
-  "notes": "Kurze Erklärung"
-}
-
-Confidence-Logik:
-- Wenn eindeutig Essen sichtbar: confidence 70-100, detected=true
-- Wenn unsicher aber wahrscheinlich Essen: confidence 40-69, detected=true, notes="Unsicher – bitte bestätigen"
-- Wenn definitiv kein Essen: detected=false
-
-Schätze realistische Nährwerte für typische Portionen.`;
-
-    // Try direct API call first, then fall back to proxy if needed
-    let result = null;
-    let lastError = null;
-    
-    const apiKey = getGeminiApiKey();
-    
-    // Determine which mode to try
-    const modesToTry = apiMode === 'auto' ? ['direct', 'proxy'] : [apiMode];
-    
-    for (const mode of modesToTry) {
-      try {
-        if (mode === 'direct') {
-          result = await callGeminiDirect(apiKey, mimeType, base64Data, prompt);
-          detectedMode = 'direct';
-          console.log('✅ Direct API call succeeded');
-          break;
-        } else if (mode === 'proxy') {
-          result = await callGeminiProxy(apiKey, mimeType, base64Data, prompt);
-          detectedMode = 'proxy';
-          console.log('✅ Proxy API call succeeded');
-          break;
-        }
-      } catch (error) {
-        console.log(`❌ ${mode} mode failed:`, error.message);
-        lastError = error;
-        // Continue to next mode
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const status = response.status;
+      
+      // Provide helpful error messages
+      if (status === 405) {
+        throw new Error('Falsche HTTP-Methode (POST erforderlich)');
+      } else if (status === 400) {
+        throw new Error(errorData.message || 'Ungültiger Request (400)');
+      } else if (status === 429) {
+        throw new Error('API-Limit erreicht (429)');
+      } else if (status === 500) {
+        throw new Error(errorData.message || 'Server-Fehler (500)');
+      } else {
+        throw new Error(`Backend-Fehler (${status})`);
       }
     }
-    
-    if (!result) {
-      throw lastError || new Error('API call failed');
-    }
 
-    // Parse and validate result
-    result = parseGeminiResponse(result);
+    const result = await response.json();
 
     // Apply confidence gating
     if (result.detected) {
@@ -1652,9 +1592,6 @@ Schätze realistische Nährwerte für typische Portionen.`;
     if (!result.detected && !result.message) {
       result.message = result.notes || 'Kein Essen erkannt';
     }
-
-    // Update API status to "ok" after successful call
-    updateApiKeyStatus('ok');
 
     if (!result.detected) {
       setAIStatus(result.lowConfidence ? "Unsichere Erkennung" : "Kein Essen erkannt", "warn");
@@ -1698,15 +1635,16 @@ Schätze realistische Nährwerte für typische Portionen.`;
     let errorDetails = '';
     
     // Provide helpful context based on error type
-    if (errorMessage.includes('CORS') || errorMessage.includes('network')) {
-      errorDetails = 'Netzwerkfehler. Stelle sicher, dass du eine Internetverbindung hast.';
-    } else if (errorMessage.includes('401') || errorMessage.includes('403') || errorMessage.includes('Ungültiger API Key')) {
-      errorDetails = 'API Key ungültig. Bitte überprüfe deinen Key.';
-      updateApiKeyStatus('invalid');
+    if (errorMessage.includes('405')) {
+      errorDetails = 'Falsche HTTP-Methode. Das Backend erwartet POST-Requests.';
+    } else if (errorMessage.includes('CORS') || errorMessage.includes('network') || errorMessage.includes('Failed to fetch')) {
+      errorDetails = 'Netzwerkfehler. Stelle sicher, dass das Vercel-Backend erreichbar ist.';
     } else if (errorMessage.includes('429')) {
       errorDetails = 'API-Limit erreicht. Bitte versuche es später erneut.';
     } else if (errorMessage.includes('400')) {
       errorDetails = 'Ungültiges Bildformat oder zu großes Bild.';
+    } else if (errorMessage.includes('500')) {
+      errorDetails = 'Serverfehler beim Vercel-Backend.';
     }
     
     document.getElementById("food-details").innerHTML = `
@@ -1722,355 +1660,47 @@ Schätze realistische Nährwerte für typische Portionen.`;
   }
 }
 
-// Call Gemini API directly from browser
-async function callGeminiDirect(apiKey, mimeType, base64Data, prompt) {
-  const geminiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
-  
-  const geminiResponse = await fetch(geminiUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-goog-api-key': apiKey
-    },
-    body: JSON.stringify({
-      contents: [{
-        parts: [
-          { text: prompt },
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: base64Data
-            }
-          }
-        ]
-      }],
-      generationConfig: {
-        temperature: 0.4,
-        topK: 32,
-        topP: 1,
-        maxOutputTokens: 1000
-      }
-    })
-  });
-
-  if (!geminiResponse.ok) {
-    const errorData = await geminiResponse.json().catch(() => ({}));
-    const status = geminiResponse.status;
-    
-    // Detailed error messages
-    if (status === 400) {
-      throw new Error('Ungültiges Bildformat (400)');
-    } else if (status === 401 || status === 403) {
-      throw new Error('Ungültiger API Key (401/403)');
-    } else if (status === 429) {
-      throw new Error('API-Limit erreicht (429)');
-    } else if (status === 404) {
-      throw new Error('API-Endpunkt nicht gefunden (404)');
-    } else {
-      throw new Error(`API-Fehler (${status})`);
-    }
-  }
-
-  return await geminiResponse.json();
-}
-
-// Call Gemini API via serverless proxy
-async function callGeminiProxy(apiKey, mimeType, base64Data, prompt) {
-  const proxyUrl = '/api/food-scan';
-  
-  const proxyResponse = await fetch(proxyUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({
-      imageBase64: base64Data,
-      mimeType: mimeType,
-      key: apiKey,
-      prompt: prompt
-    })
-  });
-
-  if (!proxyResponse.ok) {
-    const errorData = await proxyResponse.json().catch(() => ({}));
-    const status = proxyResponse.status;
-    
-    if (status === 400) {
-      throw new Error('Ungültiger Request (400)');
-    } else if (status === 401 || status === 403) {
-      throw new Error('Ungültiger API Key (401/403)');
-    } else if (status === 429) {
-      throw new Error('API-Limit erreicht (429)');
-    } else if (status === 500) {
-      throw new Error(errorData.message || 'Server-Fehler (500)');
-    } else {
-      throw new Error(`Proxy-Fehler (${status})`);
-    }
-  }
-
-  return await proxyResponse.json();
-}
-
-// Parse Gemini API response (handle different formats)
-function parseGeminiResponse(data) {
-  // Extract text from Gemini response
-  let content;
-  if (data.candidates && data.candidates[0] && data.candidates[0].content) {
-    content = data.candidates[0].content.parts[0].text;
-  } else if (typeof data === 'string') {
-    content = data;
-  } else if (data.detected !== undefined) {
-    // Already parsed
-    return data;
-  } else {
-    throw new Error('Invalid API response structure');
-  }
-
-  // Try to extract JSON from the response
-  let result;
-  try {
-    // Try to parse as direct JSON
-    result = JSON.parse(content);
-  } catch {
-    // Try to extract JSON from markdown code blocks
-    const jsonMatch = content.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/);
-    if (jsonMatch) {
-      result = JSON.parse(jsonMatch[1]);
-    } else {
-      // Try to find JSON object in the text
-      const objectMatch = content.match(/\{[\s\S]*\}/);
-      if (objectMatch) {
-        result = JSON.parse(objectMatch[0]);
-      } else {
-        // Fallback: treat as detected with text summary
-        console.warn('Could not parse JSON, using fallback');
-        return {
-          detected: true,
-          items: [{ label: 'Lebensmittel erkannt', confidence: 50, calories: 0, macros: { protein: 0, fat: 0, carbs: 0 } }],
-          totals: { calories: 0, protein: 0, fat: 0, carbs: 0 },
-          notes: content.substring(0, 200),
-          lowConfidence: true
-        };
-      }
-    }
-  }
-
-  return result;
-}
-
-// Note: Old server-side implementation has been replaced with client-side API key management
-// Users now provide their own Gemini API keys which are stored only in memory (session-only)
-
 // ============================================================================
-// API Key Status Management
+// Backend Health Check
 // ============================================================================
-function updateApiKeyStatus(status = null) {
-  const statusText = document.getElementById("api-status-text");
-  const statusDetails = document.getElementById("api-status-details");
-  const statusDisplay = document.getElementById("api-status-display");
-  
-  if (!statusText || !statusDetails || !statusDisplay) return;
-  
-  if (status === null) {
-    // Auto-detect status based on whether key is set
-    if (!hasGeminiApiKey()) {
-      status = 'not_set';
-    } else {
-      status = 'set';
-    }
-  }
-  
-  switch(status) {
-    case 'not_set':
-      statusText.textContent = "❌ Nicht gesetzt";
-      statusDetails.textContent = "Bitte gib deinen Gemini API Key ein";
-      statusDisplay.style.background = "#fee2e2"; // red
-      statusDisplay.style.color = "#991b1b";
-      break;
-    case 'set':
-      statusText.textContent = "✅ Gesetzt";
-      statusDetails.textContent = "API Key gespeichert (nur für diese Sitzung)";
-      statusDisplay.style.background = "#dbeafe"; // blue
-      statusDisplay.style.color = "#1e3a8a";
-      break;
-    case 'ok':
-      statusText.textContent = "✅ Verbindung ok";
-      statusDetails.textContent = "API Key funktioniert einwandfrei";
-      statusDisplay.style.background = "#dcfce7"; // green
-      statusDisplay.style.color = "#166534";
-      break;
-    case 'invalid':
-      statusText.textContent = "❌ Ungültig";
-      statusDetails.textContent = "API Key ist ungültig oder abgelaufen";
-      statusDisplay.style.background = "#fee2e2"; // red
-      statusDisplay.style.color = "#991b1b";
-      break;
-    case 'testing':
-      statusText.textContent = "🔍 Wird getestet...";
-      statusDetails.textContent = "Sende Testanfrage an Gemini API";
-      statusDisplay.style.background = "#f1f5f9"; // gray
-      statusDisplay.style.color = "#334155";
-      break;
-    default:
-      statusText.textContent = "❓ Unbekannt";
-      statusDetails.textContent = "";
-      statusDisplay.style.background = "#f1f5f9";
-      statusDisplay.style.color = "#334155";
-  }
-}
-
-// Test the Food Scanner with current API key
-async function testFoodScanner() {
-  const lastTestEl = document.getElementById("api-last-test");
-  
-  if (!hasGeminiApiKey()) {
-    updateApiKeyStatus('not_set');
-    alert("Bitte zuerst einen API Key eingeben!");
-    return;
-  }
-  
-  updateApiKeyStatus('testing');
-  
+async function checkBackendHealth() {
   try {
-    const apiKey = getGeminiApiKey();
-    
-    // Try to test the connection using a minimal text-only request
-    let testSuccess = false;
-    let errorMessage = '';
-    let usedMode = '';
-    
-    // Try direct mode first
-    try {
-      const testUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent`;
-      
-      const testResponse = await fetch(testUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          contents: [{
-            parts: [{
-              text: "Test"
-            }]
-          }],
-          generationConfig: {
-            maxOutputTokens: 10
-          }
-        })
-      });
-
-      if (!testResponse.ok) {
-        const status = testResponse.status;
-        
-        if (status === 403 || status === 401) {
-          errorMessage = 'Ungültiger API Key (401/403)';
-          updateApiKeyStatus('invalid');
-        } else if (status === 429) {
-          errorMessage = 'API-Limit erreicht (429)';
-          testSuccess = true; // Key is valid, just rate limited
-          usedMode = 'direct (rate limited)';
-          updateApiKeyStatus('ok');
-        } else if (status === 400) {
-          errorMessage = 'Ungültige Anfrage (400)';
-        } else {
-          errorMessage = `API-Fehler (${status})`;
-        }
-      } else {
-        testSuccess = true;
-        usedMode = 'direct';
-        updateApiKeyStatus('ok');
+    const response = await fetch(`${VERCEL_BACKEND_URL}/api/food-scan/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
       }
-    } catch (directError) {
-      // Direct mode failed, could be CORS or network issue
-      console.log('Direct mode test failed:', directError.message);
-      
-      // Check if it's a CORS error
-      if (directError.message.includes('CORS') || directError.message.includes('Failed to fetch') || directError.name === 'TypeError') {
-        errorMessage = 'CORS blockiert - versuche Proxy-Modus';
-        
-        // Try proxy mode
-        try {
-          const proxyResponse = await fetch('/api/food-scan-test', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              key: apiKey
-            })
-          });
-          
-          if (proxyResponse.ok) {
-            const data = await proxyResponse.json();
-            if (data.status === 'ok' || data.configured) {
-              testSuccess = true;
-              usedMode = 'proxy';
-              updateApiKeyStatus('ok');
-              errorMessage = '';
-            } else {
-              errorMessage = data.message || 'Proxy-Test fehlgeschlagen';
-            }
-          } else if (proxyResponse.status === 404) {
-            // Proxy not available
-            errorMessage = 'CORS blockiert & Proxy nicht verfügbar. Deployment auf Vercel/Netlify erforderlich.';
-          } else {
-            errorMessage = `Proxy-Fehler (${proxyResponse.status})`;
-          }
-        } catch (proxyError) {
-          // Proxy also failed
-          errorMessage = 'Direkt: CORS blockiert, Proxy: Nicht verfügbar';
-        }
-      } else {
-        errorMessage = directError.message;
-      }
+    });
+    
+    if (!response.ok) {
+      console.warn('Backend health check failed:', response.status);
+      backendHealthy = false;
+      setAIStatus("Backend nicht erreichbar", "warn");
+      return false;
     }
-
-    // Update last test time
-    const now = new Date();
-    if (lastTestEl) {
-      lastTestEl.textContent = now.toLocaleString('de-DE', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-    }
-
-    if (testSuccess) {
-      alert(`✅ Food Scanner Test erfolgreich!\n\nModus: ${usedMode}\nDein API Key funktioniert einwandfrei.`);
+    
+    const data = await response.json();
+    
+    if (data.ok && data.configured) {
+      backendHealthy = true;
+      setAIStatus("KI bereit", "info");
+      console.log('✅ Backend healthy:', data);
+      return true;
     } else {
-      alert(`❌ Test fehlgeschlagen\n\n${errorMessage}\n\nHinweise:\n- Überprüfe deinen API Key\n- Stelle sicher, dass du eine Internetverbindung hast\n- Bei GitHub Pages: Proxy-Deployment erforderlich`);
+      backendHealthy = false;
+      setAIStatus("Backend nicht konfiguriert", "warn");
+      console.warn('Backend not properly configured:', data);
+      return false;
     }
-    
   } catch (error) {
-    updateApiKeyStatus('invalid');
-    
-    // Update last test time even on error
-    const now = new Date();
-    if (lastTestEl) {
-      lastTestEl.textContent = now.toLocaleString('de-DE', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit', 
-        minute: '2-digit' 
-      });
-    }
-    
-    let errorMsg = error.message || 'Unbekannter Fehler';
-    
-    // Provide helpful context
-    if (error.message.includes('Failed to fetch') || error.name === 'TypeError') {
-      errorMsg = 'Netzwerkfehler - CORS blockiert oder keine Internetverbindung';
-    }
-    
-    alert(`❌ Fehler beim Testen\n\n${errorMsg}\n\nBitte überprüfe:\n- API Key korrekt?\n- Internetverbindung vorhanden?\n- GitHub Pages? → Proxy erforderlich`);
+    console.error('Backend health check error:', error);
+    backendHealthy = false;
+    setAIStatus("Backend nicht erreichbar", "warn");
+    return false;
   }
 }
 
+// ============================================================================
 function renderFoodDetection() {
   if (!lastFoodDetection) {
     document.getElementById("food-details").innerHTML = "<p class='muted'>Warte auf Scan...</p>";
@@ -2109,15 +1739,15 @@ async function handleFoodInput(event) {
   const file = event.target.files?.[0];
   if (!file) return;
   
-  // Check if API key is set before processing
-  if (!hasGeminiApiKey()) {
-    alert("Bitte zuerst einen API Key eingeben!\n\nGehe zu Profil → KI-Einstellungen und gib deinen Gemini API Key ein.");
+  // Check if backend is healthy before processing
+  if (!backendHealthy) {
+    alert("Backend nicht erreichbar!\n\nDas Vercel-Backend ist nicht verfügbar. Bitte versuche es später erneut.");
     // Clear the file input
     event.target.value = '';
     document.getElementById("food-details").innerHTML = `
       <p class='muted' style='color: #b91c1c;'>
-        <strong>API Key fehlt</strong><br/>
-        <span class='small'>Bitte gehe zu Profil → KI-Einstellungen und gib deinen Gemini API Key ein.</span>
+        <strong>Backend nicht verfügbar</strong><br/>
+        <span class='small'>Das Vercel-Backend ist nicht erreichbar.</span>
       </p>
     `;
     return;
@@ -2132,7 +1762,7 @@ async function handleFoodInput(event) {
     document.getElementById("food-details").innerHTML = "<p class='muted'>🔍 KI analysiert das Bild...</p>";
     setAIStatus("Bild wird analysiert...", "info");
     
-    // Call AI vision API
+    // Call AI vision API via Vercel backend
     lastFoodDetection = await detectFoodWithAI(e.target.result);
     
     if (lastFoodDetection) {
@@ -2267,110 +1897,6 @@ function hydrateProfile() {
 }
 
 // API Status checking functions
-async function checkFoodScannerHealth() {
-  const statusText = document.getElementById("api-status-text");
-  const statusDetails = document.getElementById("api-status-details");
-  const statusDisplay = document.getElementById("api-status-display");
-  const lastTestEl = document.getElementById("api-last-test");
-  
-  // Update UI to show checking state
-  statusText.textContent = "Wird überprüft...";
-  statusDetails.textContent = "";
-  statusDisplay.style.background = "#f1f5f9";
-  
-  try {
-    const response = await fetch('/api/food-scan-health', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    });
-    
-    if (!response.ok) {
-      throw new Error('Health check endpoint nicht erreichbar');
-    }
-    
-    const result = await response.json();
-    
-    // Update last test time
-    const now = new Date();
-    lastTestEl.textContent = now.toLocaleString('de-DE', { 
-      day: '2-digit', 
-      month: '2-digit', 
-      year: 'numeric',
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-    
-    // Update UI based on status
-    if (result.status === 'ok') {
-      statusText.textContent = "✅ " + result.message;
-      statusDetails.textContent = result.details;
-      statusDisplay.style.background = "#dcfce7"; // green
-      statusDisplay.style.color = "#166534";
-    } else if (result.status === 'warning') {
-      statusText.textContent = "⚠️ " + result.message;
-      statusDetails.textContent = result.details;
-      statusDisplay.style.background = "#fef3c7"; // yellow
-      statusDisplay.style.color = "#92400e";
-    } else {
-      statusText.textContent = "❌ " + result.message;
-      statusDetails.textContent = result.details;
-      statusDisplay.style.background = "#fee2e2"; // red
-      statusDisplay.style.color = "#991b1b";
-    }
-    
-  } catch (error) {
-    console.error('Health check failed:', error);
-    statusText.textContent = "❌ Verbindungsfehler";
-    statusDetails.textContent = error.message || 'Kann Server nicht erreichen';
-    statusDisplay.style.background = "#fee2e2";
-    statusDisplay.style.color = "#991b1b";
-  }
-}
-
-// ============================================================================
-// UI Event Handlers for API Key Management
-// ============================================================================
-function handleSetApiKey() {
-  const input = document.getElementById("api-key-input");
-  const key = input ? input.value.trim() : '';
-  
-  if (!key) {
-    alert("Bitte gib einen gültigen API Key ein!");
-    return;
-  }
-  
-  // Basic validation - Gemini keys start with "AIza"
-  if (!key.startsWith('AIza')) {
-    const proceed = confirm("Warnung: Gemini API Keys beginnen normalerweise mit 'AIza'. Möchtest du trotzdem fortfahren?");
-    if (!proceed) return;
-  }
-  
-  setGeminiApiKey(key);
-  updateApiKeyStatus('set');
-  
-  // Clear the input field for security
-  if (input) {
-    input.value = '';
-  }
-  
-  alert("✅ API Key gesetzt!\n\nDer Key wird nur für diese Sitzung gespeichert und geht nach einem Reload verloren.");
-}
-
-function handleDeleteApiKey() {
-  if (!hasGeminiApiKey()) {
-    alert("Kein API Key gesetzt!");
-    return;
-  }
-  
-  const confirm_delete = confirm("Möchtest du den API Key wirklich löschen?\n\nDu musst ihn neu eingeben, um den Food Scanner zu nutzen.");
-  if (!confirm_delete) return;
-  
-  deleteGeminiApiKey();
-  alert("API Key wurde gelöscht.");
-}
-
 function bindProfile() {
   document.getElementById("camera-consent").addEventListener("change", (e) => {
     state.profile.cameraConsent = e.target.checked;
@@ -2402,22 +1928,6 @@ document.getElementById("camera-facing").addEventListener("change", async (e) =>
   }
 });
 document.getElementById("play-replay").addEventListener("click", playReplay);
-document.getElementById("test-food-scanner").addEventListener("click", testFoodScanner);
-document.getElementById("set-api-key").addEventListener("click", handleSetApiKey);
-document.getElementById("delete-api-key").addEventListener("click", handleDeleteApiKey);
-document.getElementById("toggle-api-key-visibility").addEventListener("click", () => {
-  const input = document.getElementById("api-key-input");
-  const icon = document.getElementById("toggle-api-key-visibility");
-  if (input && icon) {
-    if (input.type === "password") {
-      input.type = "text";
-      icon.textContent = "🙈";
-    } else {
-      input.type = "password";
-      icon.textContent = "👁️";
-    }
-  }
-});
 
 hydrateProfile();
 bindProfile();
@@ -2428,8 +1938,8 @@ renderFoodLog();
 renderDashboard();
 updateReplayLog();
 
-// Initialize API key status on page load
-updateApiKeyStatus();
+// Check backend health on page load
+checkBackendHealth();
 
 window.addEventListener("beforeunload", () => {
   if (!cameraStream) return;
