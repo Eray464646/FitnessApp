@@ -42,7 +42,7 @@ main {
   padding-bottom: var(--nav-safe-area); /* Safe area padding - increased for better spacing */
   display: flex;
   flex-direction: column;
-  gap: 32px; /* Increased spacing between sections from 24px */
+  gap: 64px; /* Very aggressive vertical spacing - cards must feel like separate floating islands */
 }
 
 .top-bar {
@@ -146,7 +146,7 @@ main {
 
 .card-grid {
   display: grid;
-  gap: 24px; /* Increased from 16px for more breathing room */
+  gap: 32px; /* Aggressive gap for stats cards side-by-side */
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   margin: 0; /* Removed margin, using gap from main instead */
 }
@@ -195,7 +195,7 @@ main {
 
 .pill-list {
   display: flex;
-  gap: 12px; /* Increased from 8px */
+  gap: 16px; /* Increased spacing between pills */
   flex-wrap: wrap;
 }
 
@@ -218,7 +218,7 @@ main {
 
 .activity-list {
   display: grid;
-  gap: 24px; /* Increased from 12px for cleaner UI */
+  gap: 32px; /* Aggressive spacing between workout list items */
 }
 
 .activity-item {
@@ -418,7 +418,7 @@ main {
 
 .log-card .stack {
   display: grid;
-  gap: 12px; /* Increased from 8px */
+  gap: 24px; /* Aggressive spacing inside workout/food logs */
 }
 
 .log-item {
@@ -674,7 +674,7 @@ input::placeholder {
 .nutrition-progress-bars {
   display: flex;
   flex-direction: column;
-  gap: 20px; /* Increased from 16px */
+  gap: 24px; /* Aggressive spacing for progress bars */
 }
 
 .progress-item {
