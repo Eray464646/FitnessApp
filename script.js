@@ -17,6 +17,11 @@ const MAX_IMAGE_WIDTH = 1024;           // Max width for image compression
 const IMAGE_COMPRESSION_QUALITY = 0.8;  // JPEG compression quality
 const MAX_FOOD_NAME_LENGTH = 40;        // Maximum length for food name display
 
+// Food name extraction constants
+const UNKNOWN_FOOD_LABEL = 'Unbekanntes Lebensmittel';  // Backend fallback label to ignore
+const ADDITIONAL_ITEMS_SUFFIX = ' u.a.';  // Suffix for truncated multi-item lists (German: "und andere")
+const VALID_FOOD_NAME_CHARS_REGEX = /^[^a-zA-Z0-9äöüÄÖÜß]+$/;  // Pattern to reject punctuation-only names
+
 // ============================================================================
 // Image Compression Utility
 // ============================================================================
@@ -96,16 +101,17 @@ function extractFoodName(result) {
     }
     
     // Reject strings that are only punctuation or special characters
-    if (/^[^a-zA-Z0-9äöüÄÖÜß]+$/.test(trimmed)) {
+    if (VALID_FOOD_NAME_CHARS_REGEX.test(trimmed)) {
       return null;
     }
     
     // Truncate to max length if needed
-    const truncated = trimmed.length > MAX_FOOD_NAME_LENGTH 
-      ? trimmed.substring(0, MAX_FOOD_NAME_LENGTH).trim() + '...'
-      : trimmed;
+    if (trimmed.length > MAX_FOOD_NAME_LENGTH) {
+      const truncated = trimmed.substring(0, MAX_FOOD_NAME_LENGTH).trim();
+      return truncated + '...';
+    }
     
-    return truncated;
+    return trimmed;
   }
 
   /**
@@ -135,7 +141,7 @@ function extractFoodName(result) {
   // Strategy 1: Use pre-built label from backend if it exists and is valid
   if (result.label) {
     const sanitized = validateAndSanitize(result.label);
-    if (sanitized && sanitized !== 'Unbekanntes Lebensmittel') {
+    if (sanitized && sanitized !== UNKNOWN_FOOD_LABEL) {
       // Extract individual items if available
       const items = result.items && Array.isArray(result.items) && result.items.length > 0
         ? result.items.map(i => typeof i === 'string' ? i : i?.label).filter(Boolean)
@@ -161,7 +167,7 @@ function extractFoodName(result) {
     if (itemLabels.length > 0) {
       const name = itemLabels.join(', ');
       const truncatedName = name.length > MAX_FOOD_NAME_LENGTH
-        ? itemLabels[0] + (itemLabels.length > 1 ? ' u.a.' : '')
+        ? itemLabels[0] + (itemLabels.length > 1 ? ADDITIONAL_ITEMS_SUFFIX : '')
         : name;
       return { name: truncatedName, items: itemLabels };
     }
