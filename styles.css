@@ -9,8 +9,8 @@
   --shadow: 0 0 15px rgba(255, 255, 255, 0.15); /* Reduced opacity from 0.3 to 0.15 */
   --radius: 24px; /* rounded-3xl */
   --border-color: rgba(55, 65, 81, 0.3); /* border-gray-700/30 - reduced for less clutter */
-  --nav-safe-area: 128px; /* Safe area padding for floating navigation - increased for better spacing */
-  --nav-safe-area-mobile: 112px; /* Safe area padding for mobile - increased for better spacing */
+  --nav-safe-area: 160px; /* Safe area padding for floating navigation - pb-40 equivalent */
+  --nav-safe-area-mobile: 160px; /* Safe area padding for mobile - pb-40 equivalent */
   --nav-background: rgba(17, 24, 39, 0.9); /* Navigation background */
   --nav-inactive: #6b7280; /* Inactive navigation button color */
   --touch-target-height: 48px; /* Minimum touch target height for accessibility */
@@ -39,10 +39,10 @@ body {
 main {
   flex: 1;
   padding: 16px;
-  padding-bottom: var(--nav-safe-area); /* Safe area padding - increased for better spacing */
+  padding-bottom: var(--nav-safe-area); /* Safe area padding - pb-40 equivalent (160px) */
   display: flex;
   flex-direction: column;
-  gap: 64px; /* Very aggressive vertical spacing - cards must feel like separate floating islands */
+  gap: 40px; /* space-y-10 equivalent for consistent vertical spacing */
 }
 
 .top-bar {
@@ -740,6 +740,7 @@ input::placeholder {
   border-radius: 16px;
   border: 1px solid rgba(55, 65, 81, 0.8);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+  z-index: 30; /* Ensure floating nav is always on top */
 }
 
 .nav-btn {
