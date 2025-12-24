@@ -39,10 +39,10 @@ body {
 main {
   flex: 1;
   padding: 16px;
-  padding-bottom: var(--nav-safe-area); /* pb-24 for safe area */
+  padding-bottom: 128px; /* pb-32 for safe area - increased from 120px */
   display: flex;
   flex-direction: column;
-  gap: 24px; /* Increased spacing between sections */
+  gap: 32px; /* Increased spacing between sections from 24px */
 }
 
 .top-bar {
@@ -146,7 +146,7 @@ main {
 
 .card-grid {
   display: grid;
-  gap: 16px; /* Increased from 12px */
+  gap: 24px; /* Increased from 16px for more breathing room */
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   margin: 0; /* Removed margin, using gap from main instead */
 }
@@ -218,7 +218,7 @@ main {
 
 .activity-list {
   display: grid;
-  gap: 12px; /* Increased from 8px */
+  gap: 24px; /* Increased from 12px for cleaner UI */
 }
 
 .activity-item {
@@ -871,7 +871,7 @@ p {
     padding: 10px 4px; /* Even tighter horizontal padding */
   }
   main {
-    padding-bottom: var(--nav-safe-area-mobile);
+    padding-bottom: 112px; /* Increased from 100px for mobile safe area */
   }
   .card-grid {
     grid-template-columns: 1fr;
