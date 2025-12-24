@@ -146,7 +146,7 @@ main {
 
 .card-grid {
   display: grid;
-  gap: 32px; /* Aggressive gap for stats cards side-by-side */
+  gap: 48px; /* Increased from 32px for more breathing room and premium look */
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   margin: 0; /* Removed margin, using gap from main instead */
 }
