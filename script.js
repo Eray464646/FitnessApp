@@ -2223,6 +2223,8 @@ async function generatePlan(evt) {
 }
 
 // Fallback function to generate a simple rule-based plan if AI fails
+// Note: age, gender, height, weight are passed for consistency but not used in basic fallback
+// A more sophisticated fallback could use these for better personalization
 function generateFallbackPlan(age, gender, height, weight, equipment, frequency, goal, level) {
   // Determine exercises based on equipment
   const baseExercises =

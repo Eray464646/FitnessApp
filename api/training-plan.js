@@ -10,6 +10,9 @@ const ALLOWED_ORIGINS = [
 ];
 
 // Simple rate limiting (in-memory, resets on function cold start)
+// NOTE: In serverless environments, each instance has its own memory,
+// so this provides per-instance rate limiting, not global rate limiting.
+// For production, consider using Redis/Upstash for distributed rate limiting.
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX_REQUESTS = 20; // Max 20 requests per minute per IP
@@ -36,9 +39,16 @@ function checkRateLimit(ip) {
 module.exports = async (req, res) => {
   const origin = req.headers.origin || req.headers.referer || '';
   
-  // Enable CORS for allowed origins only
-  if (ALLOWED_ORIGINS.some(allowed => origin.includes(allowed) || allowed === '*')) {
-    res.setHeader('Access-Control-Allow-Origin', origin || ALLOWED_ORIGINS[0]);
+  // Enable CORS for allowed origins only - use exact matching for security
+  const isAllowed = ALLOWED_ORIGINS.some(allowed => {
+    if (allowed === '*') return true;
+    // Extract origin from referer if needed
+    const checkOrigin = origin.startsWith('http') ? origin : '';
+    return checkOrigin === allowed;
+  });
+  
+  if (isAllowed && origin) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
   } else {
     res.setHeader('Access-Control-Allow-Origin', ALLOWED_ORIGINS[0]); // Fallback to GitHub Pages
   }
@@ -80,12 +90,10 @@ module.exports = async (req, res) => {
       });
     }
 
-    // Validate API key format (basic check)
+    // Validate API key format (basic check - Google keys typically start with 'AIza')
+    // This is a soft check; if the format changes, the API will still fail gracefully
     if (!apiKey.startsWith('AIza')) {
-      return res.status(400).json({ 
-        error: 'Invalid API key format',
-        message: 'Ungültiges API Key Format'
-      });
+      console.warn('API key format may be incorrect (expected to start with AIza)');
     }
 
     // Validate required parameters
