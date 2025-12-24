@@ -815,48 +815,210 @@ function replaySet(setIndex) {
   }
   
   const container = document.getElementById("replay-log");
-  clearInterval(replayTimer);
   
-  let idx = 0;
   const frames = set.frames;
   
-  container.innerHTML = `
-    <div class="log-item">
-      <strong>Set Replay: ${escapeHTML(set.exercise)}</strong><br/>
-      <span class="muted small">Starte Replay von ${frames.length} Frames...</span>
-    </div>
-  `;
+  // Replay controller state
+  let currentFrameIndex = 0;
+  let isPlaying = false;
+  let playbackRate = 1.0;
+  let animationFrameId = null;
+  let lastFrameTime = 0;
   
-  replayTimer = setInterval(() => {
-    const frame = frames[idx];
+  // Calculate frame duration based on timestamps
+  const frameDurations = [];
+  for (let i = 1; i < frames.length; i++) {
+    frameDurations.push(frames[i].timestamp - frames[i - 1].timestamp);
+  }
+  const avgFrameDuration = frameDurations.length > 0 
+    ? frameDurations.reduce((a, b) => a + b, 0) / frameDurations.length 
+    : 400; // fallback to 400ms
+  
+  // Render the replay UI with controls
+  function renderReplayUI() {
+    const frame = frames[currentFrameIndex];
+    const progress = (currentFrameIndex / (frames.length - 1)) * 100;
+    
     container.innerHTML = `
-      <div class="log-item">
-        <strong>Set Replay: ${escapeHTML(set.exercise)} - Frame ${idx + 1}/${frames.length}</strong><br/>
-        <span class="muted small">
-          Qualität: ${Math.round(frame.postureScore * 100)}% · 
-          Keypoints: ${frame.keypointsTracked} · 
-          ${frame.stability}
-        </span>
+      <div class="log-item" style="padding: 16px;">
+        <strong>Set Replay: ${escapeHTML(set.exercise)}</strong><br/>
+        <span class="muted small">Frame ${currentFrameIndex + 1} / ${frames.length}</span>
+        
+        <!-- Skeleton Visualization -->
         <div class="skeleton-viz">${renderSkeletonViz(frame.keypoints)}</div>
-        <div class="progress-bar" style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 8px;">
-          <div style="width: ${(idx / frames.length) * 100}%; height: 100%; background: linear-gradient(135deg, #6366f1, #22d3ee); border-radius: 2px;"></div>
+        
+        <!-- Frame Info -->
+        <div style="margin-top: 8px;">
+          <span class="muted small">
+            Qualität: ${Math.round(frame.postureScore * 100)}% · 
+            Keypoints: ${frame.keypointsTracked} · 
+            ${frame.stability}
+          </span>
+        </div>
+        
+        <!-- Timeline Scrubber -->
+        <div style="margin-top: 12px;">
+          <input 
+            type="range" 
+            id="replay-scrubber" 
+            min="0" 
+            max="${frames.length - 1}" 
+            value="${currentFrameIndex}" 
+            style="width: 100%; cursor: pointer;"
+          />
+          <div style="width: 100%; height: 4px; background: #e2e8f0; border-radius: 2px; margin-top: 4px;">
+            <div style="width: ${progress}%; height: 100%; background: linear-gradient(135deg, #6366f1, #22d3ee); border-radius: 2px; transition: width 0.1s;"></div>
+          </div>
+        </div>
+        
+        <!-- Playback Controls -->
+        <div style="margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; align-items: center;">
+          <button class="tiny-btn" id="replay-step-back" style="padding: 8px 12px;">⏮️ -1</button>
+          <button class="tiny-btn" id="replay-play-pause" style="padding: 8px 16px; min-width: 80px;">
+            ${isPlaying ? '⏸️ Pause' : '▶️ Play'}
+          </button>
+          <button class="tiny-btn" id="replay-step-forward" style="padding: 8px 12px;">+1 ⏭️</button>
+          
+          <select id="replay-speed" style="padding: 6px 8px; border-radius: 6px; border: 1px solid #cbd5e1; background: white; cursor: pointer;">
+            <option value="0.5" ${playbackRate === 0.5 ? 'selected' : ''}>0.5x</option>
+            <option value="1" ${playbackRate === 1.0 ? 'selected' : ''}>1x</option>
+            <option value="1.5" ${playbackRate === 1.5 ? 'selected' : ''}>1.5x</option>
+            <option value="2" ${playbackRate === 2.0 ? 'selected' : ''}>2x</option>
+          </select>
+          
+          <button class="tiny-btn" id="replay-close" style="padding: 8px 12px; background: #ef4444; color: white;">✕ Schließen</button>
         </div>
       </div>
     `;
-    idx += 1;
-    if (idx >= frames.length) {
-      clearInterval(replayTimer);
-      setTimeout(() => {
+    
+    // Attach event listeners
+    attachReplayControls();
+  }
+  
+  // Attach event listeners to controls
+  function attachReplayControls() {
+    // Scrubber seek
+    const scrubber = document.getElementById('replay-scrubber');
+    if (scrubber) {
+      scrubber.addEventListener('input', (e) => {
+        currentFrameIndex = parseInt(e.target.value);
+        renderReplayUI();
+      });
+      
+      // Mobile-friendly touch events
+      scrubber.addEventListener('touchstart', () => {
+        if (isPlaying) togglePlayPause();
+      });
+    }
+    
+    // Play/Pause
+    const playPauseBtn = document.getElementById('replay-play-pause');
+    if (playPauseBtn) {
+      playPauseBtn.addEventListener('click', togglePlayPause);
+    }
+    
+    // Step backward
+    const stepBackBtn = document.getElementById('replay-step-back');
+    if (stepBackBtn) {
+      stepBackBtn.addEventListener('click', () => {
+        if (currentFrameIndex > 0) {
+          currentFrameIndex--;
+          renderReplayUI();
+        }
+      });
+    }
+    
+    // Step forward
+    const stepForwardBtn = document.getElementById('replay-step-forward');
+    if (stepForwardBtn) {
+      stepForwardBtn.addEventListener('click', () => {
+        if (currentFrameIndex < frames.length - 1) {
+          currentFrameIndex++;
+          renderReplayUI();
+        }
+      });
+    }
+    
+    // Speed selector
+    const speedSelector = document.getElementById('replay-speed');
+    if (speedSelector) {
+      speedSelector.addEventListener('change', (e) => {
+        playbackRate = parseFloat(e.target.value);
+      });
+    }
+    
+    // Close button
+    const closeBtn = document.getElementById('replay-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', () => {
+        stopReplay();
         container.innerHTML = `
           <div class="log-item">
-            <strong>Replay abgeschlossen</strong><br/>
-            <span class="muted small">Satz: ${escapeHTML(set.exercise)} · ${set.reps} Wdh · Technik ${set.quality}%</span>
-            <button class="tiny-btn" onclick="replaySet(${setIndex})">🔄 Erneut abspielen</button>
+            <span class="muted">Replay geschlossen</span>
           </div>
         `;
-      }, 1000);
+      });
     }
-  }, 400);
+  }
+  
+  // Toggle play/pause
+  function togglePlayPause() {
+    isPlaying = !isPlaying;
+    if (isPlaying) {
+      startPlayback();
+    } else {
+      stopPlayback();
+    }
+    renderReplayUI();
+  }
+  
+  // Start playback animation
+  function startPlayback() {
+    lastFrameTime = performance.now();
+    
+    function animate(currentTime) {
+      if (!isPlaying) return;
+      
+      const elapsed = currentTime - lastFrameTime;
+      const frameDuration = avgFrameDuration / playbackRate;
+      
+      if (elapsed >= frameDuration) {
+        lastFrameTime = currentTime;
+        currentFrameIndex++;
+        
+        if (currentFrameIndex >= frames.length) {
+          // Reached the end
+          currentFrameIndex = frames.length - 1;
+          isPlaying = false;
+          renderReplayUI();
+          return;
+        }
+        
+        renderReplayUI();
+      }
+      
+      animationFrameId = requestAnimationFrame(animate);
+    }
+    
+    animationFrameId = requestAnimationFrame(animate);
+  }
+  
+  // Stop playback animation
+  function stopPlayback() {
+    if (animationFrameId) {
+      cancelAnimationFrame(animationFrameId);
+      animationFrameId = null;
+    }
+  }
+  
+  // Stop replay completely
+  function stopReplay() {
+    isPlaying = false;
+    stopPlayback();
+  }
+  
+  // Initial render
+  renderReplayUI();
 }
 
 function renderSkeletonViz(keypoints) {
@@ -1016,8 +1178,20 @@ function renderFoodLog() {
 
 function computeStreak() {
   const days = new Set();
-  state.sets.forEach((s) => days.add(s.timestamp.slice(0, 10)));
-  state.foodEntries.forEach((f) => days.add(f.timestamp.slice(0, 10)));
+  state.sets.forEach((s) => {
+    if (!s.timestamp) return;
+    const dateStr = typeof s.timestamp === 'number'
+      ? new Date(s.timestamp).toISOString().slice(0, 10)
+      : typeof s.timestamp === 'string' ? s.timestamp.slice(0, 10) : '';
+    if (dateStr) days.add(dateStr);
+  });
+  state.foodEntries.forEach((f) => {
+    if (!f.timestamp) return;
+    const dateStr = typeof f.timestamp === 'number'
+      ? new Date(f.timestamp).toISOString().slice(0, 10)
+      : typeof f.timestamp === 'string' ? f.timestamp.slice(0, 10) : '';
+    if (dateStr) days.add(dateStr);
+  });
   let streak = 0;
   let cursor = new Date();
   for (;;) {
@@ -1034,7 +1208,13 @@ function computeStreak() {
 
 function renderDashboard() {
   const today = todayKey();
-  const todaySets = state.sets.filter((s) => s.timestamp.startsWith(today));
+  const todaySets = state.sets.filter((s) => {
+    if (!s.timestamp) return false;
+    const timestamp = typeof s.timestamp === 'number' 
+      ? new Date(s.timestamp).toISOString().slice(0, 10)
+      : typeof s.timestamp === 'string' ? s.timestamp.slice(0, 10) : '';
+    return timestamp === today;
+  });
   const reps = todaySets.reduce((sum, s) => sum + s.reps, 0);
   const tech =
     todaySets.length === 0
@@ -1043,7 +1223,13 @@ function renderDashboard() {
   document.getElementById("today-reps").textContent = reps;
   document.getElementById("tech-score").textContent = `Technik-Score: ${tech}%`;
 
-  const todayFood = state.foodEntries.filter((f) => f.timestamp.startsWith(today));
+  const todayFood = state.foodEntries.filter((f) => {
+    if (!f.timestamp) return false;
+    const timestamp = typeof f.timestamp === 'number'
+      ? new Date(f.timestamp).toISOString().slice(0, 10)
+      : typeof f.timestamp === 'string' ? f.timestamp.slice(0, 10) : '';
+    return timestamp === today;
+  });
   const calories = todayFood.reduce((sum, f) => sum + f.calories, 0);
   const protein = todayFood.reduce((sum, f) => sum + f.protein, 0);
   document.getElementById("today-calories").textContent = calories;
@@ -1539,6 +1725,69 @@ function hydrateProfile() {
   document.getElementById("wearable-toggle").checked = !!state.profile.wearable;
 }
 
+// API Status checking functions
+async function checkFoodScannerHealth() {
+  const statusText = document.getElementById("api-status-text");
+  const statusDetails = document.getElementById("api-status-details");
+  const statusDisplay = document.getElementById("api-status-display");
+  const lastTestEl = document.getElementById("api-last-test");
+  
+  // Update UI to show checking state
+  statusText.textContent = "Wird überprüft...";
+  statusDetails.textContent = "";
+  statusDisplay.style.background = "#f1f5f9";
+  
+  try {
+    const response = await fetch('/api/food-scan-health', {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Health check endpoint nicht erreichbar');
+    }
+    
+    const result = await response.json();
+    
+    // Update last test time
+    const now = new Date();
+    lastTestEl.textContent = now.toLocaleString('de-DE', { 
+      day: '2-digit', 
+      month: '2-digit', 
+      year: 'numeric',
+      hour: '2-digit', 
+      minute: '2-digit' 
+    });
+    
+    // Update UI based on status
+    if (result.status === 'ok') {
+      statusText.textContent = "✅ " + result.message;
+      statusDetails.textContent = result.details;
+      statusDisplay.style.background = "#dcfce7"; // green
+      statusDisplay.style.color = "#166534";
+    } else if (result.status === 'warning') {
+      statusText.textContent = "⚠️ " + result.message;
+      statusDetails.textContent = result.details;
+      statusDisplay.style.background = "#fef3c7"; // yellow
+      statusDisplay.style.color = "#92400e";
+    } else {
+      statusText.textContent = "❌ " + result.message;
+      statusDetails.textContent = result.details;
+      statusDisplay.style.background = "#fee2e2"; // red
+      statusDisplay.style.color = "#991b1b";
+    }
+    
+  } catch (error) {
+    console.error('Health check failed:', error);
+    statusText.textContent = "❌ Verbindungsfehler";
+    statusDetails.textContent = error.message || 'Kann Server nicht erreichen';
+    statusDisplay.style.background = "#fee2e2";
+    statusDisplay.style.color = "#991b1b";
+  }
+}
+
 function bindProfile() {
   document.getElementById("camera-consent").addEventListener("change", (e) => {
     state.profile.cameraConsent = e.target.checked;
@@ -1570,6 +1819,7 @@ document.getElementById("camera-facing").addEventListener("change", async (e) =>
   }
 });
 document.getElementById("play-replay").addEventListener("click", playReplay);
+document.getElementById("test-food-scanner").addEventListener("click", checkFoodScannerHealth);
 
 hydrateProfile();
 bindProfile();
@@ -1579,6 +1829,9 @@ renderSets();
 renderFoodLog();
 renderDashboard();
 updateReplayLog();
+
+// Check API status on page load
+checkFoodScannerHealth();
 
 window.addEventListener("beforeunload", () => {
   if (!cameraStream) return;

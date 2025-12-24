@@ -295,8 +295,24 @@
             <p class="muted small" style="padding: 12px; background: #dbeafe; border-radius: 8px; color: #1e3a8a;">
               <strong>Sicherheitshinweis:</strong> Die KI-Bilderkennung verwendet einen Server-seitigen API-Schlüssel. Deine Bilder werden sicher verarbeitet und der API-Schlüssel ist niemals im Browser sichtbar.
             </p>
-            <p class="muted small" style="margin-top: 8px;">
-              Die Food-Scan-Funktion nutzt Google Gemini Vision API. Der API-Schlüssel wird ausschließlich auf dem Server gespeichert und verarbeitet.
+            
+            <div id="api-status-container" style="margin-top: 16px;">
+              <div id="api-status-display" style="padding: 12px; border-radius: 8px; background: #f1f5f9; margin-bottom: 12px;">
+                <strong>Status:</strong> <span id="api-status-text">Wird überprüft...</span><br/>
+                <span id="api-status-details" class="muted small"></span>
+              </div>
+              <button class="btn secondary" id="test-food-scanner" style="width: 100%;">
+                🔍 Food Scanner testen
+              </button>
+              <p class="muted small" style="margin-top: 8px;">
+                Letzter Test: <span id="api-last-test">Noch nicht getestet</span>
+              </p>
+            </div>
+            
+            <p class="muted small" style="margin-top: 16px;">
+              <strong>Setup-Anleitung:</strong><br/>
+              Setze die Environment Variable <code>GEMINI_API_KEY</code> in deiner Server-Umgebung.<br/>
+              API-Schlüssel erhältlich auf: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a>
             </p>
           </div>
         </section>
