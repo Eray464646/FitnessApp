@@ -4,7 +4,7 @@
   background: #0f172a; /* Deep atmospheric slate-950 */
   --primary: #ffffff;
   --primary-strong: #ffffff;
-  --surface: rgba(15, 23, 42, 0.6); /* bg-slate-900/60 for glassmorphism */
+  --surface: rgba(15, 23, 42, 0.6); /* bg-slate-950/60 for glassmorphism */
   --surface-light: rgba(255, 255, 255, 0.05); /* bg-white/5 for subtle panels */
   --muted: #94a3b8; /* text-slate-400 for softer secondary text */
   --shadow: 0 10px 40px rgba(0, 0, 0, 0.3); /* Deeper shadows for depth */
@@ -588,7 +588,7 @@ main {
   border-radius: 16px;
   object-fit: cover;
   max-height: 200px;
-  background: rgba(31, 41, 55, 0.3);
+  background: rgba(15, 23, 42, 0.3); /* Consistent slate-950 */
   border: 1px solid var(--border-color);
 }
 
@@ -774,7 +774,7 @@ input::placeholder {
 
 .progress-bar {
   height: 12px;
-  background: rgba(55, 65, 81, 0.5);
+  background: rgba(15, 23, 42, 0.5); /* Consistent slate-950 */
   border-radius: 999px;
   overflow: hidden;
   position: relative;
