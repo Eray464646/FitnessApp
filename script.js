@@ -777,7 +777,8 @@ function renderDashboard() {
   document.getElementById("today-reps").textContent = reps;
   document.getElementById("tech-score").textContent = tech + "%";
   document.getElementById("today-calories").textContent = calories;
-  document.getElementById("today-protein").textContent = protein + " g";
+  // Protein display removed in new design - protein value calculated but not shown in dashboard rings
+  // document.getElementById("today-protein").textContent = protein + " g";
   document.getElementById("streak-score").textContent = computeStreak();
 
   const recentItems = [...state.sets, ...state.foodEntries].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).slice(0, 4);
