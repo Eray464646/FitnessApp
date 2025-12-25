@@ -220,6 +220,23 @@ main {
   position: relative;
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* Apple easing */
+  animation: cardFadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1) backwards;
+}
+
+/* Stagger animation for multiple cards */
+.card-grid .card:nth-child(1) { animation-delay: 0.05s; }
+.card-grid .card:nth-child(2) { animation-delay: 0.1s; }
+.card-grid .card:nth-child(3) { animation-delay: 0.15s; }
+
+@keyframes cardFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* Subtle inner highlight for depth */
@@ -258,6 +275,19 @@ main {
   color: var(--text-primary);
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
+}
+
+/* Activity Ring Color Accents */
+.card:nth-child(1) .card-value span {
+  color: var(--color-move); /* Training - pink/red */
+}
+
+.card:nth-child(2) .card-value span {
+  color: var(--color-exercise); /* Nutrition - green */
+}
+
+.card:nth-child(3) .card-value {
+  color: var(--color-stand); /* Recovery - cyan */
 }
 
 .card-grid {
@@ -524,11 +554,16 @@ main {
   padding: var(--spacing-xs);
   border-radius: var(--radius-sm);
   font-size: 15px;
+  letter-spacing: -0.01em;
 }
 
 .tiny-btn:active {
   transform: scale(0.95);
   opacity: 0.7;
+}
+
+.tiny-btn:hover {
+  opacity: 0.8;
 }
 
 .controls {
@@ -997,6 +1032,7 @@ p {
   font-size: 11px;
   color: var(--text-secondary);
   margin: 0 0 var(--spacing-xs) 0;
+  line-height: 1.2;
 }
 
 .title {
