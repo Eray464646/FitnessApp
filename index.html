@@ -24,10 +24,6 @@
 
       <main>
         <section id="dashboard" class="view active">
-          <div class="date-header">
-            <span id="current-date">Heute</span>
-          </div>
-
           <div class="ios-card activity-card">
             <div class="activity-rings">
               <div class="ring-container">
@@ -68,31 +64,8 @@
             </button>
           </div>
 
-          <div class="ios-section-title">Status</div>
-          <div class="ios-list-group">
-            <div class="ios-list-item">
-              <div class="icon-box blue-bg">
-                <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
-              </div>
-              <div class="content">
-                <div class="label">Regeneration</div>
-                <div class="value muted" id="recovery-hint">Bereit</div>
-              </div>
-            </div>
-            <div class="ios-list-item">
-               <div class="icon-box orange-bg">
-                <svg width="18" height="18" fill="white" viewBox="0 0 24 24"><path d="M11 9H9V2H7v7H5V2H3v7c0 2.12 1.66 3.84 3.75 3.97V22h2.5v-9.03C11.34 12.84 13 11.12 13 9V2h-2v7zm5-3v8h2.5v8H21V2c-2.76 0-5 2.24-5 4z"/></svg>
-              </div>
-              <div class="content">
-                <div class="label">Protein heute</div>
-                <div class="value muted" id="today-protein">0 g</div>
-              </div>
-            </div>
-          </div>
-
           <div class="ios-section-header">
             <h3>Letzte Aktivitäten</h3>
-            <button class="link-btn" data-nav-target="training">Alle</button>
           </div>
           <div id="recent-activity" class="ios-list-group"></div>
         </section>
@@ -107,8 +80,8 @@
                 <option value="Rows">Rows</option>
               </select>
                <select id="camera-facing" class="glass-select icon-only">
-                <option value="environment">back</option>
-                <option value="user">front</option>
+                <option value="environment">⟳</option>
+                <option value="user">☺</option>
               </select>
             </div>
             
@@ -147,16 +120,15 @@
           <div class="ios-section-title">Heutige Sätze</div>
           <div id="sets-list" class="ios-list-group"></div>
           
-           <div class="ios-section-title">Pose Replay</div>
+           <div class="ios-section-title">Analyse</div>
            <div class="ios-card" style="padding:0;">
              <div class="block-header" style="padding: 12px 16px;">
-                 <span>Letzte Analyse</span>
-                 <button class="link-btn" id="play-replay">Abspielen</button>
+                 <span>Letzter Status</span>
+                 <button class="link-btn" id="play-replay">Checken</button>
              </div>
              <div id="replay-log" style="padding: 0 16px 16px 16px;"></div>
            </div>
         </section>
-
         <section id="nutrition" class="view">
           <div class="ios-card scanner-hero">
             <label class="file-upload-overlay">
@@ -171,17 +143,18 @@
             </div>
           </div>
 
-          <div class="slider-container ios-list-item" style="margin-top: 16px; border-radius: 12px;">
-             <span>Portion</span>
-             <input type="range" id="portion-slider" min="0.5" max="2" step="0.1" value="1" class="ios-slider"/>
+          <div class="ios-card" style="margin-top: 16px;">
+             <div class="form-row">
+               <label>Portion</label>
+               <input type="range" id="portion-slider" min="0.5" max="2" step="0.1" value="1" class="ios-slider"/>
+             </div>
+             <div id="food-details">
+                <p class="muted small text-center">Scanne eine Mahlzeit für KI-Analyse</p>
+             </div>
+             <button class="ios-btn-full ios-btn-blue" id="save-food">Hinzufügen</button>
           </div>
 
-          <div id="food-details" class="ios-card info-box" style="margin-top: 16px;">
-            <p class="muted">Scanne eine Mahlzeit für KI-Analyse</p>
-          </div>
-          <button class="ios-btn-full ios-btn-blue" id="save-food" style="margin-top: 16px;">Hinzufügen</button>
-
-          <div id="nutrition-progress-card" class="ios-card" style="margin-top: 24px; display: none;">
+          <div id="nutrition-progress-card" class="ios-card" style="margin-top: 16px; display: none;">
              <h3>Tagesfortschritt</h3>
              <div id="nutrition-progress" class="progress-stack"></div>
            </div>
@@ -197,11 +170,6 @@
                  <input type="number" id="calc-weight" placeholder="kg" value="75" class="ios-input">
                  <input type="number" id="calc-height" placeholder="cm" value="178" class="ios-input">
                </div>
-               <div style="display:none;">
-                  <select id="calc-gender"><option value="divers">Divers</option></select>
-                  <input id="calc-age" value="25">
-                  <select id="calc-activity"><option value="moderate">Mittel</option></select>
-               </div>
                <button type="submit" class="link-btn" style="margin-top:10px;">Neu berechnen</button>
             </form>
             <div id="calorie-results" style="margin-top:10px;"></div>
@@ -212,36 +180,25 @@
         </section>
 
         <section id="plan" class="view">
-           <div class="ios-card accent-card">
+           <div class="ios-card" style="background: linear-gradient(135deg, #1C1C1E 0%, #2C2C2E 100%);">
               <h2>Dein KI Plan</h2>
-              <p class="muted" id="plan-summary">Wird geladen...</p>
+              <p class="muted" id="plan-summary">Lade...</p>
            </div>
            
            <form id="plan-form" class="ios-card hidden-form">
-              <input type="hidden" id="age" value="25"><input type="hidden" id="gender" value="männlich">
-              <input type="hidden" id="height" value="180"><input type="hidden" id="weight" value="80">
-              <div class="form-row">
-                 <label>Level</label>
-                 <select id="level" class="ios-input"><option value="anfänger">Anfänger</option><option value="fortgeschritten">Fortgeschritten</option></select>
-              </div>
-              <div class="form-row">
-                 <label>Geräte</label>
-                 <select id="equipment" class="ios-input"><option value="körpergewicht">Bodyweight</option><option value="kurzhanteln">Kurzhanteln</option><option value="studio">Gym</option></select>
-              </div>
-               <div class="form-row">
-                 <label>Ziel</label>
-                 <select id="goal" class="ios-input"><option value="aufbau">Muskeln</option><option value="fatloss">Definition</option></select>
-              </div>
-              <div class="form-row">
-                 <label>Tage/Woche</label>
-                 <input type="number" id="frequency" value="3" class="ios-input">
-              </div>
-              <button class="ios-btn-full ios-btn-blue" type="submit" style="margin-top:12px;">Plan aktualisieren</button>
+              <div class="form-row"><label>Level</label><select id="level" class="ios-input"><option value="anfänger">Anfänger</option><option value="fortgeschritten">Fortgeschritten</option></select></div>
+              <div class="form-row"><label>Geräte</label><select id="equipment" class="ios-input"><option value="körpergewicht">Bodyweight</option><option value="kurzhanteln">Kurzhanteln</option><option value="studio">Gym</option></select></div>
+               <div class="form-row"><label>Ziel</label><select id="goal" class="ios-input"><option value="aufbau">Muskeln</option><option value="fatloss">Definition</option></select></div>
+              <div class="form-row"><label>Tage/Woche</label><input type="number" id="frequency" value="3" class="ios-input"></div>
+              
+              <input type="hidden" id="age" value="25"><input type="hidden" id="gender" value="männlich"><input type="hidden" id="height" value="180"><input type="hidden" id="weight" value="80">
+              
+              <button class="ios-btn-full ios-btn-blue" type="submit">Plan aktualisieren</button>
            </form>
 
            <div class="ios-section-title">Wochenübersicht</div>
            <div id="plan-days" class="ios-list-group"></div>
-           <div id="next-session" style="display:none;"></div> </section>
+        </section>
 
         <section id="profile" class="view">
            <div class="ios-section-title">Einstellungen</div>
@@ -255,13 +212,12 @@
                  <input type="checkbox" id="notification-toggle" checked class="ios-switch">
               </div>
                <div class="ios-list-item">
-                 <span>Apple Watch / Wearable</span>
+                 <span>Apple Watch</span>
                  <input type="checkbox" id="wearable-toggle" class="ios-switch">
               </div>
            </div>
-           <p class="legal-text">FitSense AI speichert keine Videos. Analyse erfolgt lokal/temporär.</p>
+           <p class="muted small text-center" style="margin-top:20px;">FitSense AI v2.0 · Privacy First</p>
         </section>
-
       </main>
 
       <nav class="ios-tab-bar">
