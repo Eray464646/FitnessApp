@@ -4,26 +4,37 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>FitSense AI | Mobile Fitness</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              'neon-lime': '#a3e635',
-            }
-          }
+    <!-- Tailwind CSS via Play CDN (alternative that may work better) -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio"></script>
+    <style type="text/tailwindcss">
+      @layer utilities {
+        .text-neon-lime {
+          color: #a3e635;
+        }
+        .bg-neon-lime {
+          background-color: #a3e635;
+        }
+        .border-neon-lime {
+          border-color: #a3e635;
+        }
+        .shadow-neon-lime\/30 {
+          box-shadow: 0 10px 40px rgba(163, 230, 53, 0.3);
+        }
+        .shadow-neon-lime\/50 {
+          box-shadow: 0 10px 40px rgba(163, 230, 53, 0.5);
+        }
+        .shadow-neon-lime\/20 {
+          box-shadow: 0 0 0 3px rgba(163, 230, 53, 0.2);
         }
       }
-    </script>
+    </style>
     <link rel="stylesheet" href="styles.css" />
     <!-- MediaPipe Pose for real-time human pose estimation -->
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose/pose.js" crossorigin="anonymous"></script>
     <script defer src="script.js"></script>
   </head>
-  <body class="bg-black text-white font-sans antialiased">
+  <body class="bg-black text-white font-sans antialiased m-0 p-0 overflow-x-hidden">
     <div class="min-h-screen flex flex-col max-w-5xl mx-auto bg-black">
       <header class="sticky top-0 z-10 bg-[#1c1c1e]/80 backdrop-blur-xl border-b border-white/10 px-5 py-4 flex justify-between items-center">
         <div class="flex items-center gap-2 font-bold text-white tracking-tight">
