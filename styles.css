@@ -1,265 +1,983 @@
 :root {
-  /* --- APPLE FITNESS PALETTE --- */
-  --bg-color: #000000;              /* Deep OLED Black */
-  --card-bg: #1C1C1E;               /* Secondary System Background */
-  --card-bg-elevated: #2C2C2E;      /* Tertiary System Background */
-  --text-primary: #FFFFFF;
-  --text-secondary: #8E8E93;        /* System Gray */
-  --separator: rgba(84, 84, 88, 0.65); /* Separator Line */
-  
-  /* --- NEON ACCENTS --- */
-  --accent-green: #9df243; /* Fitness Activity Green */
-  --accent-red: #fa114f;   /* Activity Red */
-  --accent-blue: #00e0ff;  /* Cyan Blue */
-  --accent-orange: #FF9500;
-  
-  /* --- SYSTEM VARS --- */
-  --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-  --safe-area-bottom: env(safe-area-inset-bottom, 20px);
-  --header-height: 60px;
-  --nav-height: 85px;
-  --radius-l: 16px;
-  --radius-m: 12px;
-  --radius-s: 8px;
+  font-family: "Inter", "Outfit", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color: #ffffff;
+  background: #0f172a; /* Deep atmospheric slate-950 */
+  --primary: #ffffff;
+  --primary-strong: #ffffff;
+  --surface: rgba(15, 23, 42, 0.6); /* bg-slate-950/60 for glassmorphism */
+  --surface-light: rgba(255, 255, 255, 0.05); /* bg-white/5 for subtle panels */
+  --muted: #94a3b8; /* text-slate-400 for softer secondary text */
+  --shadow: 0 10px 40px rgba(0, 0, 0, 0.3); /* Deeper shadows for depth */
+  --shadow-glow: 0 8px 32px rgba(139, 92, 246, 0.3); /* Colored shadow for buttons */
+  --radius: 24px; /* rounded-3xl for organic mobile feel */
+  --border-color: rgba(255, 255, 255, 0.1); /* border-white/10 subtle translucent */
+  --nav-safe-area: 160px; /* Safe area padding for floating navigation - pb-40 equivalent */
+  --nav-safe-area-mobile: 160px; /* Safe area padding for mobile - pb-40 equivalent */
+  --nav-background: rgba(15, 23, 42, 0.8); /* Deep slate with opacity */
+  --nav-inactive: #64748b; /* slate-500 for inactive nav */
+  --touch-target-height: 48px; /* Minimum touch target height for accessibility */
+  --gradient-primary: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); /* violet-600 to indigo-600 */
+  --gradient-accent: linear-gradient(135deg, #ec4899 0%, #8b5cf6 100%); /* pink to violet */
 }
 
-* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
-  background-color: var(--bg-color);
-  color: var(--text-primary);
-  font-family: var(--font-stack);
-  -webkit-font-smoothing: antialiased; /* Crisp text like iOS */
+  background: #0f172a; /* Deep atmospheric slate-950 */
+  color: #ffffff;
   overflow-x: hidden;
-  padding-bottom: calc(var(--nav-height) + 20px); /* Platz für Navigation */
+  position: relative;
 }
 
-/* --- TYPOGRAPHY --- */
-h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
-h1 { font-size: 34px; margin-bottom: 8px; }
-h2 { font-size: 28px; margin-bottom: 16px; }
-h3 { font-size: 20px; margin-bottom: 8px; font-weight: 600; }
+/* Background gradient accents for depth - subtle purple glow */
+body::before {
+  content: '';
+  position: absolute;
+  top: -20%;
+  left: -20%;
+  width: 140%;
+  height: 140%;
+  background: radial-gradient(circle at 50% 20%, rgba(139, 92, 246, 0.15) 0%, transparent 50%),
+              radial-gradient(circle at 80% 80%, rgba(99, 102, 241, 0.1) 0%, transparent 50%);
+  pointer-events: none;
+  z-index: 0;
+}
 
-.muted { color: var(--text-secondary); font-size: 15px; line-height: 1.4; }
-.small { font-size: 13px; }
-.label { text-transform: uppercase; font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.05em; }
-.val-huge { font-size: 48px; font-weight: 800; line-height: 1; font-family: "Druk", "Impact", sans-serif; letter-spacing: -1px; }
+.app-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  max-width: 960px;
+  margin: 0 auto;
+  background: transparent; /* Let body gradient show through */
+  position: relative;
+  z-index: 1;
+}
 
-/* --- APP SHELL & HEADER --- */
-.app-shell { max-width: 600px; margin: 0 auto; min-height: 100vh; position: relative; }
+main {
+  flex: 1;
+  padding: 16px;
+  padding-bottom: var(--nav-safe-area); /* Safe area padding - pb-40 equivalent (160px) */
+  display: flex;
+  flex-direction: column;
+  gap: 40px; /* space-y-10 equivalent for consistent vertical spacing */
+}
 
-.view { display: none; padding: 0 16px 16px 16px; animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.view.active { display: block; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.top-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(15, 23, 42, 0.8); /* Deep slate with glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 16px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--border-color);
+}
 
-/* Sticky Header mit Blur Effekt */
-.ios-header {
-  position: sticky; top: 0; z-index: 90;
-  background: rgba(0,0,0,0.85); 
-  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-  padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.08);
+.brand {
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #ffffff;
+  letter-spacing: 0.02em; /* Crisp tracking */
+}
+
+.brand .dot {
+  width: 12px;
+  height: 12px;
+  background: linear-gradient(135deg, #8b5cf6, #6366f1); /* Gradient dot */
+  box-shadow: 0 0 16px rgba(139, 92, 246, 0.6); /* Glow effect */
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-pill {
+  background: var(--gradient-primary);
+  color: #ffffff;
+  padding: 8px 16px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 14px;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3);
+}
+
+.view {
+  display: none;
+}
+
+.view.active {
+  display: block;
+}
+
+.hero-card {
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: white;
+  padding: 32px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color); /* Subtle translucent border */
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 24px;
+  grid-template-columns: 2fr 1fr;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Add subtle glow behind hero card */
+.hero-card::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 80%;
+  height: 80%;
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.hero-card > * {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-card h1 {
+  margin: 8px 0 4px;
+  font-size: 22px;
+  color: #ffffff;
+  font-weight: 700;
+  letter-spacing: 0.01em; /* Crisp tracking */
+}
+
+.subtext {
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 8px;
+}
+
+.hero-score {
+  text-align: right;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.1em; /* Wide tracking */
+  font-weight: 700;
+  font-size: 12px;
+  color: var(--muted);
+  margin: 0;
+}
+
+.muted {
+  color: var(--muted); /* Softer slate-400 */
+  margin: 4px 0;
+}
+
+.muted.small {
+  font-size: 13px;
+}
+
+.card-grid {
+  display: grid;
+  gap: 48px; /* Increased from 32px for more breathing room and premium look */
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  margin: 0; /* Removed margin, using gap from main instead */
+}
+
+.card {
+  background: var(--surface); /* Glassmorphism bg-slate-900/60 */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius); /* rounded-3xl */
+  padding: 28px;
+  border: 1px solid var(--border-color); /* Subtle translucent border */
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.card:hover {
+  transform: translateY(-2px); /* Subtle lift instead of scale */
+  box-shadow: 0 12px 48px rgba(0, 0, 0, 0.4);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.card-title {
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: #ffffff;
+}
+
+.card-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.list-block {
+  margin: 0; /* Removed, using gap from main instead */
+}
+
+.block-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px; /* Increased from 8px */
+}
+
+.pill-list {
+  display: flex;
+  gap: 16px; /* Increased spacing between pills */
+  flex-wrap: wrap;
+}
+
+.pill {
+  padding: 12px 18px;
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.pill:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.activity-list {
+  display: grid;
+  gap: 32px; /* Aggressive spacing between workout list items */
+}
+
+.activity-item {
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: var(--shadow);
+  color: #ffffff;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.activity-item:hover {
+  transform: translateX(4px);
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.chip {
+  background: rgba(255, 255, 255, 0.08); /* More subtle */
+  color: #ffffff;
+  border-radius: 16px;
+  padding: 10px 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border-color);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.chip select,
+.chip input[type="range"] {
+  border: none;
+  background: transparent;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.camera-panel {
+  position: relative;
+  border-radius: var(--radius); /* rounded-3xl */
+  overflow: hidden;
+  background: #0f172a; /* Deep slate background */
+  margin: 0;
+  min-height: 300px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+}
+
+#camera-feed {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: brightness(0.75);
+}
+
+#skeleton-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+}
+
+.camera-overlay {
+  position: absolute;
+  inset: 0;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  color: white;
+}
+
+.badge {
+  align-self: flex-start;
+  background: rgba(15, 23, 42, 0.7); /* More solid glassmorphism */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 8px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.feedback .title {
+  margin: 4px 0;
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.rep-counter {
+  align-self: flex-start;
+  background: rgba(15, 23, 42, 0.7); /* More solid glassmorphism */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 14px 18px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+}
+
+.big-number {
+  font-size: 32px;
+  font-weight: 800;
+  margin: 4px 0;
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px; /* Increased from 8px */
+}
+
+.btn {
+  border: none;
+  border-radius: 12px;
+  padding: 14px 20px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  min-height: var(--touch-target-height);
+  font-size: 15px;
+  letter-spacing: 0.01em;
+}
+
+/* Active state for touch feedback */
+.btn:active {
+  transform: scale(0.95); /* active:scale-95 for micro-interaction */
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn.primary {
+  background: var(--gradient-primary); /* Vibrant gradient violet to indigo */
+  color: #ffffff;
+  box-shadow: 0 8px 24px rgba(139, 92, 246, 0.3); /* Colored shadow */
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.btn.primary:hover {
+  box-shadow: 0 12px 32px rgba(139, 92, 246, 0.4); /* Enhanced glow on hover */
+}
+
+.btn.primary:active {
+  transform: scale(0.95);
+  box-shadow: 0 6px 20px rgba(139, 92, 246, 0.3);
+}
+
+.btn.secondary {
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: white;
+  border: 1px solid var(--border-color);
+}
+
+.btn.secondary:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.btn.secondary:active {
+  transform: scale(0.95);
+}
+
+.btn.ghost {
+  background: var(--surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: #ffffff;
+  border: 1px solid var(--border-color);
+}
+
+.btn.ghost:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+}
+
+.btn.ghost:active {
+  transform: scale(0.95);
+}
+
+.btn.full {
+  width: 100%;
+}
+
+.tiny-btn {
+  border: none;
+  background: transparent;
+  color: #94a3b8; /* Softer slate-400 */
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 6px 10px;
+  border-radius: 8px;
+}
+
+.tiny-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.tiny-btn:active {
+  transform: scale(0.95);
+}
+
+.log-card .stack {
+  display: grid;
+  gap: 24px; /* Aggressive spacing inside workout/food logs */
+}
+
+.log-item {
+  padding: 18px;
+  border-radius: 16px;
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  color: #ffffff;
+  transition: all 0.2s ease;
+  overflow: hidden;
+}
+
+.log-item:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.15);
+  transform: translateY(-1px);
+}
+
+.exercise-detail {
+  margin-top: 6px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.9rem;
+  color: #ffffff;
+}
+
+.exercise-detail:last-child {
+  border-bottom: none;
+}
+
+.exercise-detail strong {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.swipeable {
+  touch-action: pan-y;
+  user-select: none;
+  transition: transform 0.3s ease;
+}
+
+.upload-card {
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius); /* rounded-3xl */
+  padding: 28px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 18px;
+  position: relative;
+  overflow: hidden;
+}
+
+.upload-area {
+  border: 2px dashed var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  display: block;
+  cursor: pointer;
+  color: #ffffff;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.upload-area:hover {
+  border-color: #8b5cf6; /* Violet accent on hover */
+  background: rgba(139, 92, 246, 0.05);
+}
+
+.upload-area:active {
+  transform: scale(0.98); /* Touch feedback */
+}
+
+.upload-area input {
+  display: none;
+}
+
+.preview {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  align-items: center;
+}
+
+.preview img {
+  width: 100%;
+  border-radius: 16px;
+  object-fit: cover;
+  max-height: 200px;
+  background: rgba(15, 23, 42, 0.3); /* Consistent slate-950 */
+  border: 1px solid var(--border-color);
+}
+
+.form-card {
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius); /* rounded-3xl */
+  padding: 28px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px; /* Increased from 10px */
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
+label {
+  font-weight: 700;
+  color: #ffffff;
+  display: grid;
+  gap: 6px;
+  font-size: 14px;
+}
+
+input,
+select {
+  border: 1px solid var(--border-color);
+  border-radius: 12px; /* rounded-xl */
+  padding: 12px 16px;
+  font-size: 15px;
+  background: rgba(15, 23, 42, 0.5); /* bg-slate-800/50 high-end form element */
+  color: #ffffff;
+  transition: all 0.3s ease;
+}
+
+input:focus,
+select:focus {
+  outline: none;
+  border-color: #8b5cf6; /* violet-600 focus ring */
+  background: rgba(15, 23, 42, 0.7);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.2); /* Focused ring */
+}
+
+input::placeholder {
+  color: var(--muted);
+}
+
+.toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-color);
+  color: #ffffff;
+}
+
+/* Swipeable food items with delete button */
+.swipeable {
+  position: relative;
+  transition: transform 0.3s ease;
+}
+
+.log-item.swipeable {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-item-content {
+  flex: 1;
+}
+
+.delete-btn {
+  background: #dc2626;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  padding: 10px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 10px rgba(220, 38, 38, 0.2); /* Reduced from 0.3 */
+}
+
+.delete-btn:hover {
+  background: #b91c1c;
+  transform: scale(1.1);
+  box-shadow: 0 0 15px rgba(220, 38, 38, 0.3); /* Reduced from 0.5 */
+}
+
+.delete-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+/* Totals item styling */
+.totals-item {
+  background: rgba(255, 255, 255, 0.05);
+  border: 2px solid var(--border-color);
+  font-weight: 600;
+  margin-top: 8px;
+  color: #ffffff;
+}
+
+/* Nutrition calculator results */
+.nutrition-results {
+  margin-top: 16px;
+}
+
+.nutrition-summary {
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 20px;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+  color: #ffffff;
+}
+
+.nutrition-goal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 16px;
-}
-.header-status { display: flex; align-items: center; gap: 12px; }
-.status-indicator { 
-  font-size: 12px; font-weight: 600; 
-  color: var(--accent-blue); background: rgba(0, 224, 255, 0.15); 
-  padding: 4px 10px; border-radius: 100px; 
-}
-.user-avatar { 
-  width: 36px; height: 36px; 
-  background: var(--card-bg-elevated); border-radius: 50%; 
-  display: flex; align-items: center; justify-content: center; 
-  color: var(--text-secondary); cursor: pointer; transition: 0.2s;
-}
-.user-avatar:active { opacity: 0.7; }
-/* --- IOS CARDS & LISTS --- */
-.ios-card {
-  background: var(--card-bg); border-radius: var(--radius-l); padding: 20px; margin-bottom: 16px;
-  position: relative; overflow: hidden;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-color);
+  color: #ffffff;
 }
 
-.ios-section-title {
-  margin: 24px 0 8px 16px; font-size: 13px; text-transform: uppercase; 
-  color: var(--text-secondary); font-weight: 600;
+.nutrition-stats {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 16px;
 }
 
-.ios-list-group {
-  background: var(--card-bg); border-radius: var(--radius-l); 
-  overflow: hidden; margin-bottom: 24px;
+.nutrition-stat {
+  text-align: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.4); /* Subtle darker background */
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
 }
 
-.ios-list-item {
-  padding: 16px; display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 0.5px solid var(--separator); background: var(--card-bg);
-  min-height: 60px;
-}
-.ios-list-item:last-child { border-bottom: none; }
-.ios-list-item:active { background: var(--card-bg-elevated); } /* Touch Feedback */
-
-/* Icon Boxen (bunte Quadrate links in Listen) */
-.icon-box { 
-  width: 32px; height: 32px; border-radius: 8px; 
-  display: flex; align-items: center; justify-content: center; margin-right: 14px; flex-shrink: 0;
-}
-.blue-bg { background: var(--accent-blue); }
-.orange-bg { background: var(--accent-orange); }
-.green-bg { background: var(--accent-green); }
-
-/* --- BUTTONS --- */
-.ios-btn-green, .ios-btn-gray, .ios-btn-blue, .ios-btn-red {
-  border: none; border-radius: 100px; padding: 14px 24px; 
-  font-size: 16px; font-weight: 700; cursor: pointer; color: #000;
-  transition: transform 0.1s, opacity 0.2s;
-}
-.ios-btn-green { background: var(--accent-green); box-shadow: 0 4px 12px rgba(157, 242, 67, 0.3); }
-.ios-btn-blue { background: var(--accent-blue); color: #000; box-shadow: 0 4px 12px rgba(0, 224, 255, 0.3); }
-.ios-btn-red { background: var(--accent-red); color: white; box-shadow: 0 4px 12px rgba(250, 17, 79, 0.3); }
-.ios-btn-gray { background: #3A3A3C; color: white; }
-.ios-btn-full { width: 100%; border-radius: 14px; margin-top: 12px; }
-
-.ios-btn-green:active, .ios-btn-blue:active { transform: scale(0.96); opacity: 0.9; }
-
-.link-btn { 
-  background: none; border: none; color: var(--accent-blue); 
-  font-size: 15px; font-weight: 600; padding: 8px 12px; cursor: pointer;
+.stat-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #ffffff;
+  margin-bottom: 4px;
 }
 
-/* Action Cards (2er Grid Dashboard) */
-.ios-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
-.action-card {
-  background: var(--card-bg-elevated); border: none; border-radius: var(--radius-l); padding: 18px;
-  display: flex; flex-direction: column; align-items: center; gap: 12px; cursor: pointer; color: white;
-  font-size: 15px; font-weight: 600; transition: 0.2s;
-}
-.action-card:active { transform: scale(0.97); background: #3a3a3c; }
-.icon-circle { 
-  width: 48px; height: 48px; border-radius: 50%; 
-  display: flex; align-items: center; justify-content: center; 
-}
-.color-green .icon-circle { background: rgba(157, 242, 67, 0.15); color: var(--accent-green); }
-.color-orange .icon-circle { background: rgba(255, 149, 0, 0.15); color: var(--accent-orange); }
-
-/* --- INPUTS & FORMS --- */
-.ios-input, .ios-select {
-  width: 100%; background: var(--card-bg-elevated); border: none; color: white;
-  padding: 14px; border-radius: 10px; font-size: 16px; outline: none;
-}
-.ios-input:focus { background: #3a3a3c; }
-
-.form-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
-.form-row label { flex: 1; font-weight: 500; font-size: 16px; }
-.form-row.split { gap: 10px; }
-
-/* Custom iOS Switch */
-.ios-switch { appearance: none; width: 51px; height: 31px; background: #39393D; border-radius: 100px; position: relative; transition: 0.3s; cursor: pointer; }
-.ios-switch:checked { background: #30D158; } /* System Green */
-.ios-switch::after { 
-  content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; 
-  background: white; border-radius: 50%; transition: 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
-  box-shadow: 0 3px 8px rgba(0,0,0,0.2); 
-}
-.ios-switch:checked::after { transform: translateX(20px); }
-/* --- ACTIVITY RINGS (Dashboard) --- */
-.activity-card { 
-  display: flex; align-items: center; justify-content: space-between; 
-  background: black; border: 1px solid #222; padding: 24px;
-}
-.ring-container { 
-  position: relative; width: 110px; height: 110px; 
-  display: flex; align-items: center; justify-content: center; 
-}
-/* CSS Hack für einfache Ringe (besser als JS Canvas für reines UI) */
-.ring { position: absolute; border-radius: 50%; border: 6px solid rgba(255,255,255,0.08); }
-.ring-red { width: 100%; height: 100%; border-top-color: var(--accent-red); border-right-color: var(--accent-red); transform: rotate(-45deg); z-index: 1; }
-.ring-green { width: 75%; height: 75%; border-top-color: var(--accent-green); border-left-color: var(--accent-green); transform: rotate(120deg); z-index: 2; }
-.ring-blue { width: 50%; height: 50%; border-bottom-color: var(--accent-blue); transform: rotate(200deg); z-index: 3; }
-
-.ring-stats { text-align: center; z-index: 4; }
-.activity-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-left: 24px; }
-.legend-item { display: flex; align-items: baseline; gap: 6px; font-size: 15px; font-weight: 500; }
-.legend-item.red { color: var(--accent-red); }
-.legend-item.green { color: var(--accent-green); }
-.legend-item.blue { color: var(--accent-blue); }
-.legend-item .val { font-weight: 700; font-size: 20px; color: white; }
-
-/* --- KAMERA & TRAINING UI --- */
-.camera-container {
-  padding: 0; height: 70vh; background: black; border-radius: 24px; 
-  position: relative; margin-bottom: 16px; overflow: hidden;
-  border: 1px solid #333;
-}
-.video-wrapper { position: absolute; inset: 0; width: 100%; height: 100%; }
-#camera-feed, #skeleton-canvas { width: 100%; height: 100%; object-fit: cover; }
-/* Mirror effect for front camera usually helps UX */
-#camera-feed { transform: scaleX(-1); } 
-
-.camera-header-overlay { 
-  position: absolute; top: 20px; left: 16px; right: 16px; z-index: 20; 
-  display: flex; justify-content: space-between; 
-}
-.camera-footer-overlay { 
-  position: absolute; bottom: 0; left: 0; right: 0; z-index: 20; 
-  padding: 24px; background: linear-gradient(to top, rgba(0,0,0,0.95), transparent); 
+.stat-label {
+  font-size: 14px;
+  color: var(--muted);
 }
 
-.glass-select {
-  appearance: none; background: rgba(80, 80, 80, 0.4); backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.1); color: white; 
-  padding: 8px 16px; border-radius: 100px; font-weight: 600; font-size: 14px;
+/* Progress bars */
+.nutrition-progress-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 24px; /* Aggressive spacing for progress bars */
 }
-.metrics-row { display: flex; gap: 32px; margin-top: 16px; align-items: flex-end; }
 
-.control-bar { display: flex; gap: 12px; justify-content: center; margin-bottom: 32px; }
-.icon-only { width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 20px; }
-
-/* --- FOOD SCANNER --- */
-.scanner-hero { 
-  text-align: center; border: 2px dashed #444; background: #111; 
-  cursor: pointer; padding: 50px 20px; transition: 0.2s;
+.progress-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* Increased from 6px */
 }
-.scanner-hero:active { background: #222; border-color: #666; }
-.file-upload-overlay input { display: none; }
-.camera-icon-large { color: var(--accent-blue); display: flex; flex-direction: column; align-items: center; gap: 12px; font-weight: 600; }
-#food-preview { max-width: 100%; border-radius: 12px; margin-top: 20px; display: none; border: 1px solid #333; }
-#food-preview[src] { display: block; }
-.ios-slider { width: 100%; accent-color: var(--accent-blue); height: 6px; }
 
-/* Nutrition Progress Bars */
-.progress-stack { display: flex; flex-direction: column; gap: 16px; }
-.progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; font-weight: 500; }
-.progress-bar { height: 10px; background: #333; border-radius: 10px; overflow: hidden; }
-.progress-fill { height: 100%; border-radius: 10px; transition: width 0.5s ease-out; background: white; }
-.progress-fill.protein { background: var(--accent-red); }
-.progress-fill.fat { background: var(--accent-orange); }
-.progress-fill.carbs { background: var(--accent-green); }
-
-/* --- NAVIGATION BAR --- */
-.ios-tab-bar {
-  position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-height);
-  background: rgba(28, 28, 30, 0.92); 
-  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
-  border-top: 0.5px solid rgba(255,255,255,0.15);
-  display: flex; justify-content: space-around; padding-top: 12px; 
-  padding-bottom: var(--safe-area-bottom);
-  z-index: 1000;
+.progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #ffffff;
 }
-.tab-btn {
-  background: none; border: none; color: #8E8E93; 
-  display: flex; flex-direction: column; align-items: center; gap: 5px; 
-  font-size: 10px; font-weight: 500; width: 100%; cursor: pointer;
+
+.progress-bar {
+  height: 12px;
+  background: rgba(15, 23, 42, 0.5); /* Consistent slate-950 */
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
 }
-.tab-btn svg { width: 24px; height: 24px; transition: transform 0.2s; }
-.tab-btn:active svg { transform: scale(0.9); }
 
-/* Active States colors */
-.tab-btn.active { color: var(--accent-green); }
-.tab-btn[data-target="nutrition"].active { color: var(--accent-orange); }
-.tab-btn[data-target="plan"].active { color: var(--accent-blue); }
+.progress-fill {
+  height: 100%;
+  background: #ffffff;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.3); /* Reduced from 0.5 */
+}
 
-/* --- UTILS --- */
-.swipeable { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
-.hidden-form { display: block; } /* Placeholder, falls JS Logik sichtbar macht */
+.progress-fill.protein {
+  background: #22d3ee;
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.3); /* Reduced from 0.5 */
+}
+
+.progress-fill.fat {
+  background: #fb923c;
+  box-shadow: 0 0 10px rgba(251, 146, 60, 0.3); /* Reduced from 0.5 */
+}
+
+.progress-fill.carbs {
+  background: #10b981;
+  box-shadow: 0 0 10px rgba(16, 185, 129, 0.3); /* Reduced from 0.5 */
+}
+
+.bottom-nav {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: calc(100% - 32px);
+  max-width: 920px;
+  background: rgba(15, 23, 42, 0.9); /* Deep slate glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  color: white;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: 20px; /* More rounded for premium feel */
+  border: 1px solid var(--border-color);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05) inset; /* Layered shadow */
+  z-index: 30;
+}
+
+.nav-btn {
+  background: transparent;
+  color: var(--nav-inactive);
+  border: none;
+  padding: 10px 8px;
+  font-weight: 600;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-size: 13px;
+  min-height: var(--touch-target-height);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.nav-btn:active {
+  transform: scale(0.95); /* Touch feedback */
+}
+
+.nav-btn:hover {
+  color: #94a3b8; /* Lighter slate on hover */
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.nav-btn.active {
+  background: var(--gradient-primary); /* Vibrant gradient */
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(139, 92, 246, 0.3); /* Colored shadow */
+}
+
+.nav-btn.active:hover {
+  box-shadow: 0 6px 16px rgba(139, 92, 246, 0.4);
+}
+
+/* Global heading and text styles */
+h1, h2, h3, h4, h5, h6 {
+  color: #ffffff;
+  margin: 0;
+  letter-spacing: 0.01em; /* Crisp tracking for headings */
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+h3 {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+p {
+  color: #ffffff;
+  line-height: 1.6;
+}
+
+.title {
+  color: #ffffff;
+  font-weight: 700;
+}
+
+/* Quick actions on hero card */
+.quick-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 20px; /* More spacing for thumb zone consideration */
+}
+
+/* Section header styling */
+.section-header h2 {
+  color: #ffffff;
+  letter-spacing: 0.01em;
+}
+
+/* Block header styling */
+.block-header h2,
+.block-header h3 {
+  color: #ffffff;
+}
+
+/* Feedback title in camera overlay */
+.feedback .title {
+  color: #ffffff;
+}
+
+/* Food details */
+#food-details {
+  color: #ffffff;
+  padding: 14px;
+  background: rgba(15, 23, 42, 0.4); /* Subtle darker background */
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+}
+
+/* Log card */
+.log-card {
+  background: var(--surface); /* Glassmorphism */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: var(--radius); /* rounded-3xl */
+  padding: 28px;
+  border: 1px solid var(--border-color);
+  box-shadow: var(--shadow);
+  position: relative;
+  overflow: hidden;
+  margin: 0;
+}
+
+@media (max-width: 720px) {
+  .hero-card {
+    grid-template-columns: 1fr;
+  }
+  .preview {
+    grid-template-columns: 1fr;
+  }
+  .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .nutrition-stats {
+    grid-template-columns: 1fr;
+  }
+  .bottom-nav {
+    width: calc(100% - 32px);
+    bottom: 16px;
+    gap: 2px; /* Reduced from 4px on mobile */
+    padding: 6px; /* Reduced from 8px */
+  }
+  .nav-btn {
+    font-size: 11px; /* Reduced from 13px for mobile */
+    padding: 10px 4px; /* Even tighter horizontal padding */
+  }
+  main {
+    padding-bottom: var(--nav-safe-area-mobile); /* Mobile safe area padding */
+  }
+  .card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 400px) {
+  .bottom-nav {
+    width: calc(100% - 16px); /* Even less margin on very small screens */
+    padding: 6px 4px; /* Tighter horizontal padding */
+  }
+  .nav-btn {
+    font-size: 10px; /* Further reduced for very small screens */
+    padding: 10px 2px; /* Minimal horizontal padding */
+    font-weight: 600; /* Slightly reduced weight */
+  }
+}
