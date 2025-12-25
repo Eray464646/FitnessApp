@@ -1,20 +1,26 @@
 :root {
-  /* Apple Palette */
-  --bg-color: #000000;
-  --card-bg: #1C1C1E;
-  --card-bg-elevated: #2C2C2E;
+  /* --- APPLE FITNESS PALETTE --- */
+  --bg-color: #000000;              /* Deep OLED Black */
+  --card-bg: #1C1C1E;               /* Secondary System Background */
+  --card-bg-elevated: #2C2C2E;      /* Tertiary System Background */
   --text-primary: #FFFFFF;
-  --text-secondary: #8E8E93;
-  --separator: #38383A;
+  --text-secondary: #8E8E93;        /* System Gray */
+  --separator: rgba(84, 84, 88, 0.65); /* Separator Line */
   
-  /* Neons */
-  --accent-green: #9df243; /* Fitness Green */
+  /* --- NEON ACCENTS --- */
+  --accent-green: #9df243; /* Fitness Activity Green */
   --accent-red: #fa114f;   /* Activity Red */
-  --accent-blue: #00e0ff;  /* Cool Blue */
+  --accent-blue: #00e0ff;  /* Cyan Blue */
   --accent-orange: #FF9500;
   
+  /* --- SYSTEM VARS --- */
   --font-stack: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   --safe-area-bottom: env(safe-area-inset-bottom, 20px);
+  --header-height: 60px;
+  --nav-height: 85px;
+  --radius-l: 16px;
+  --radius-m: 12px;
+  --radius-s: 8px;
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -24,178 +30,236 @@ body {
   background-color: var(--bg-color);
   color: var(--text-primary);
   font-family: var(--font-stack);
-  -webkit-font-smoothing: antialiased;
+  -webkit-font-smoothing: antialiased; /* Crisp text like iOS */
   overflow-x: hidden;
-  padding-bottom: 90px; /* Space for Nav */
+  padding-bottom: calc(var(--nav-height) + 20px); /* Platz für Navigation */
 }
 
-/* --- Layout & Typography --- */
-.app-shell { max-width: 600px; margin: 0 auto; min-height: 100vh; position: relative; }
-.view { display: none; padding: 16px; animation: fadeIn 0.3s ease; }
-.view.active { display: block; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
-
-h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.5px; }
+/* --- TYPOGRAPHY --- */
+h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -0.02em; }
+h1 { font-size: 34px; margin-bottom: 8px; }
 h2 { font-size: 28px; margin-bottom: 16px; }
-h3 { font-size: 20px; margin-bottom: 10px; }
-.muted { color: var(--text-secondary); font-size: 14px; }
+h3 { font-size: 20px; margin-bottom: 8px; font-weight: 600; }
+
+.muted { color: var(--text-secondary); font-size: 15px; line-height: 1.4; }
 .small { font-size: 13px; }
+.label { text-transform: uppercase; font-size: 11px; font-weight: 600; color: var(--text-secondary); letter-spacing: 0.05em; }
+.val-huge { font-size: 48px; font-weight: 800; line-height: 1; font-family: "Druk", "Impact", sans-serif; letter-spacing: -1px; }
 
-/* --- Header --- */
+/* --- APP SHELL & HEADER --- */
+.app-shell { max-width: 600px; margin: 0 auto; min-height: 100vh; position: relative; }
+
+.view { display: none; padding: 0 16px 16px 16px; animation: fadeIn 0.4s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.view.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Sticky Header mit Blur Effekt */
 .ios-header {
-  position: sticky; top: 0; z-index: 100;
-  background: rgba(0,0,0,0.8); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-  padding: 16px 20px; display: flex; justify-content: space-between; align-items: center;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
+  position: sticky; top: 0; z-index: 90;
+  background: rgba(0,0,0,0.85); 
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.08);
+  margin-bottom: 16px;
 }
-.ios-header h1 { font-size: 32px; }
 .header-status { display: flex; align-items: center; gap: 12px; }
-.status-indicator { font-size: 12px; font-weight: 600; color: var(--accent-blue); background: rgba(0, 224, 255, 0.1); padding: 4px 8px; border-radius: 100px; }
-.user-avatar { width: 32px; height: 32px; background: var(--card-bg-elevated); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: var(--text-secondary); cursor: pointer; }
-
-/* --- Cards & Lists --- */
+.status-indicator { 
+  font-size: 12px; font-weight: 600; 
+  color: var(--accent-blue); background: rgba(0, 224, 255, 0.15); 
+  padding: 4px 10px; border-radius: 100px; 
+}
+.user-avatar { 
+  width: 36px; height: 36px; 
+  background: var(--card-bg-elevated); border-radius: 50%; 
+  display: flex; align-items: center; justify-content: center; 
+  color: var(--text-secondary); cursor: pointer; transition: 0.2s;
+}
+.user-avatar:active { opacity: 0.7; }
+/* --- IOS CARDS & LISTS --- */
 .ios-card {
-  background: var(--card-bg); border-radius: 16px; padding: 20px; margin-bottom: 16px;
+  background: var(--card-bg); border-radius: var(--radius-l); padding: 20px; margin-bottom: 16px;
   position: relative; overflow: hidden;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
 }
 
 .ios-section-title {
-  margin: 24px 0 8px 16px; font-size: 13px; text-transform: uppercase; color: var(--text-secondary); font-weight: 600;
-}
-.ios-section-header {
-  display: flex; justify-content: space-between; align-items: baseline; margin: 24px 0 8px 0; padding: 0 4px;
+  margin: 24px 0 8px 16px; font-size: 13px; text-transform: uppercase; 
+  color: var(--text-secondary); font-weight: 600;
 }
 
 .ios-list-group {
-  background: var(--card-bg); border-radius: 14px; overflow: hidden; margin-bottom: 20px;
+  background: var(--card-bg); border-radius: var(--radius-l); 
+  overflow: hidden; margin-bottom: 24px;
 }
+
 .ios-list-item {
   padding: 16px; display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid var(--separator); background: var(--card-bg);
+  border-bottom: 0.5px solid var(--separator); background: var(--card-bg);
+  min-height: 60px;
 }
 .ios-list-item:last-child { border-bottom: none; }
-.ios-list-item:active { background: var(--card-bg-elevated); }
+.ios-list-item:active { background: var(--card-bg-elevated); } /* Touch Feedback */
 
-.icon-box { width: 30px; height: 30px; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-right: 12px; }
+/* Icon Boxen (bunte Quadrate links in Listen) */
+.icon-box { 
+  width: 32px; height: 32px; border-radius: 8px; 
+  display: flex; align-items: center; justify-content: center; margin-right: 14px; flex-shrink: 0;
+}
 .blue-bg { background: var(--accent-blue); }
 .orange-bg { background: var(--accent-orange); }
+.green-bg { background: var(--accent-green); }
 
-/* --- Activity Rings Simulation --- */
-.activity-card { display: flex; align-items: center; justify-content: space-between; background: black; border: 1px solid #333; }
-.ring-container { position: relative; width: 100px; height: 100px; display: flex; align-items: center; justify-content: center; }
-.ring {
-  position: absolute; border-radius: 50%; border: 4px solid rgba(255,255,255,0.1);
+/* --- BUTTONS --- */
+.ios-btn-green, .ios-btn-gray, .ios-btn-blue, .ios-btn-red {
+  border: none; border-radius: 100px; padding: 14px 24px; 
+  font-size: 16px; font-weight: 700; cursor: pointer; color: #000;
+  transition: transform 0.1s, opacity 0.2s;
 }
-.ring-red { width: 100%; height: 100%; border-top-color: var(--accent-red); border-right-color: var(--accent-red); transform: rotate(-45deg); }
-.ring-green { width: 75%; height: 75%; border-top-color: var(--accent-green); border-left-color: var(--accent-green); transform: rotate(120deg); }
-.ring-blue { width: 50%; height: 50%; border-bottom-color: var(--accent-blue); transform: rotate(200deg); }
-.ring-stats { text-align: center; z-index: 2; }
-.big-stat { font-size: 24px; font-weight: 800; line-height: 1; }
-.stat-label { font-size: 10px; color: var(--text-secondary); text-transform: uppercase; }
+.ios-btn-green { background: var(--accent-green); box-shadow: 0 4px 12px rgba(157, 242, 67, 0.3); }
+.ios-btn-blue { background: var(--accent-blue); color: #000; box-shadow: 0 4px 12px rgba(0, 224, 255, 0.3); }
+.ios-btn-red { background: var(--accent-red); color: white; box-shadow: 0 4px 12px rgba(250, 17, 79, 0.3); }
+.ios-btn-gray { background: #3A3A3C; color: white; }
+.ios-btn-full { width: 100%; border-radius: 14px; margin-top: 12px; }
 
-.activity-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-left: 20px; }
+.ios-btn-green:active, .ios-btn-blue:active { transform: scale(0.96); opacity: 0.9; }
+
+.link-btn { 
+  background: none; border: none; color: var(--accent-blue); 
+  font-size: 15px; font-weight: 600; padding: 8px 12px; cursor: pointer;
+}
+
+/* Action Cards (2er Grid Dashboard) */
+.ios-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 24px; }
+.action-card {
+  background: var(--card-bg-elevated); border: none; border-radius: var(--radius-l); padding: 18px;
+  display: flex; flex-direction: column; align-items: center; gap: 12px; cursor: pointer; color: white;
+  font-size: 15px; font-weight: 600; transition: 0.2s;
+}
+.action-card:active { transform: scale(0.97); background: #3a3a3c; }
+.icon-circle { 
+  width: 48px; height: 48px; border-radius: 50%; 
+  display: flex; align-items: center; justify-content: center; 
+}
+.color-green .icon-circle { background: rgba(157, 242, 67, 0.15); color: var(--accent-green); }
+.color-orange .icon-circle { background: rgba(255, 149, 0, 0.15); color: var(--accent-orange); }
+
+/* --- INPUTS & FORMS --- */
+.ios-input, .ios-select {
+  width: 100%; background: var(--card-bg-elevated); border: none; color: white;
+  padding: 14px; border-radius: 10px; font-size: 16px; outline: none;
+}
+.ios-input:focus { background: #3a3a3c; }
+
+.form-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.form-row label { flex: 1; font-weight: 500; font-size: 16px; }
+.form-row.split { gap: 10px; }
+
+/* Custom iOS Switch */
+.ios-switch { appearance: none; width: 51px; height: 31px; background: #39393D; border-radius: 100px; position: relative; transition: 0.3s; cursor: pointer; }
+.ios-switch:checked { background: #30D158; } /* System Green */
+.ios-switch::after { 
+  content: ''; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; 
+  background: white; border-radius: 50%; transition: 0.3s cubic-bezier(0.2, 0.8, 0.2, 1); 
+  box-shadow: 0 3px 8px rgba(0,0,0,0.2); 
+}
+.ios-switch:checked::after { transform: translateX(20px); }
+/* --- ACTIVITY RINGS (Dashboard) --- */
+.activity-card { 
+  display: flex; align-items: center; justify-content: space-between; 
+  background: black; border: 1px solid #222; padding: 24px;
+}
+.ring-container { 
+  position: relative; width: 110px; height: 110px; 
+  display: flex; align-items: center; justify-content: center; 
+}
+/* CSS Hack für einfache Ringe (besser als JS Canvas für reines UI) */
+.ring { position: absolute; border-radius: 50%; border: 6px solid rgba(255,255,255,0.08); }
+.ring-red { width: 100%; height: 100%; border-top-color: var(--accent-red); border-right-color: var(--accent-red); transform: rotate(-45deg); z-index: 1; }
+.ring-green { width: 75%; height: 75%; border-top-color: var(--accent-green); border-left-color: var(--accent-green); transform: rotate(120deg); z-index: 2; }
+.ring-blue { width: 50%; height: 50%; border-bottom-color: var(--accent-blue); transform: rotate(200deg); z-index: 3; }
+
+.ring-stats { text-align: center; z-index: 4; }
+.activity-legend { display: flex; flex-direction: column; gap: 8px; flex: 1; padding-left: 24px; }
 .legend-item { display: flex; align-items: baseline; gap: 6px; font-size: 15px; font-weight: 500; }
 .legend-item.red { color: var(--accent-red); }
 .legend-item.green { color: var(--accent-green); }
 .legend-item.blue { color: var(--accent-blue); }
-.legend-item .val { font-weight: 700; font-size: 18px; color: white; }
-.legend-item .unit { font-size: 13px; font-weight: 400; color: var(--text-secondary); }
+.legend-item .val { font-weight: 700; font-size: 20px; color: white; }
 
-/* --- Buttons & Actions --- */
-.ios-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-.action-card {
-  background: var(--card-bg-elevated); border: none; border-radius: 14px; padding: 16px;
-  display: flex; flex-direction: column; align-items: center; gap: 10px; cursor: pointer; color: white;
-  font-size: 15px; font-weight: 600; transition: transform 0.1s;
-}
-.action-card:active { transform: scale(0.98); background: #3a3a3c; }
-.icon-circle { width: 44px; height: 44px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
-.color-green .icon-circle { background: rgba(157, 242, 67, 0.2); color: var(--accent-green); }
-.color-orange .icon-circle { background: rgba(255, 149, 0, 0.2); color: var(--accent-orange); }
-
-.ios-btn-green, .ios-btn-gray, .ios-btn-blue, .ios-btn-red {
-  border: none; border-radius: 100px; padding: 12px 24px; font-size: 16px; font-weight: 700; cursor: pointer; color: black;
-}
-.ios-btn-green { background: var(--accent-green); }
-.ios-btn-blue { background: var(--accent-blue); }
-.ios-btn-red { background: var(--accent-red); color: white; }
-.ios-btn-gray { background: #3A3A3C; color: white; }
-.ios-btn-full { width: 100%; border-radius: 12px; padding: 16px; }
-.link-btn { background: none; border: none; color: var(--accent-blue); font-size: 15px; font-weight: 500; padding: 0; }
-
-/* --- Camera UI --- */
+/* --- KAMERA & TRAINING UI --- */
 .camera-container {
-  padding: 0; height: 65vh; background: black; border-radius: 20px; position: relative; margin-bottom: 12px;
+  padding: 0; height: 70vh; background: black; border-radius: 24px; 
+  position: relative; margin-bottom: 16px; overflow: hidden;
+  border: 1px solid #333;
 }
-.video-wrapper { position: absolute; inset: 0; border-radius: 20px; overflow: hidden; }
+.video-wrapper { position: absolute; inset: 0; width: 100%; height: 100%; }
 #camera-feed, #skeleton-canvas { width: 100%; height: 100%; object-fit: cover; }
-.camera-header-overlay { position: absolute; top: 16px; left: 16px; right: 16px; z-index: 10; display: flex; justify-content: space-between; }
-.camera-footer-overlay { position: absolute; bottom: 0; left: 0; right: 0; z-index: 10; padding: 20px; background: linear-gradient(to top, black, transparent); }
+/* Mirror effect for front camera usually helps UX */
+#camera-feed { transform: scaleX(-1); } 
+
+.camera-header-overlay { 
+  position: absolute; top: 20px; left: 16px; right: 16px; z-index: 20; 
+  display: flex; justify-content: space-between; 
+}
+.camera-footer-overlay { 
+  position: absolute; bottom: 0; left: 0; right: 0; z-index: 20; 
+  padding: 24px; background: linear-gradient(to top, rgba(0,0,0,0.95), transparent); 
+}
 
 .glass-select {
-  appearance: none; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px);
-  border: none; color: white; padding: 8px 16px; border-radius: 100px; font-weight: 600;
+  appearance: none; background: rgba(80, 80, 80, 0.4); backdrop-filter: blur(12px);
+  border: 1px solid rgba(255,255,255,0.1); color: white; 
+  padding: 8px 16px; border-radius: 100px; font-weight: 600; font-size: 14px;
 }
-.status-badge { display: inline-block; background: rgba(255,255,255,0.2); backdrop-filter: blur(10px); padding: 4px 10px; border-radius: 6px; font-size: 11px; text-transform: uppercase; margin-bottom: 8px; }
+.metrics-row { display: flex; gap: 32px; margin-top: 16px; align-items: flex-end; }
 
-.metrics-row { display: flex; gap: 24px; margin-top: 16px; }
-.metric { display: flex; flex-direction: column; }
-.metric .label { font-size: 11px; text-transform: uppercase; color: #bbb; }
-.metric .val-huge { font-size: 42px; font-weight: 800; line-height: 1; font-family: "Druk", "Impact", sans-serif; }
-.metric .val-small { font-size: 24px; font-weight: 700; }
+.control-bar { display: flex; gap: 12px; justify-content: center; margin-bottom: 32px; }
+.icon-only { width: 50px; height: 50px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 20px; }
 
-.control-bar { display: flex; gap: 10px; justify-content: center; margin-bottom: 24px; }
-.icon-only { width: 44px; height: 44px; padding: 0; display: flex; align-items: center; justify-content: center; border-radius: 50%; }
-
-/* --- Forms & Inputs --- */
-.ios-input, .ios-select {
-  width: 100%; background: var(--card-bg-elevated); border: none; color: white;
-  padding: 12px; border-radius: 8px; font-size: 16px;
+/* --- FOOD SCANNER --- */
+.scanner-hero { 
+  text-align: center; border: 2px dashed #444; background: #111; 
+  cursor: pointer; padding: 50px 20px; transition: 0.2s;
 }
-.form-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
-.form-row label { flex: 1; font-weight: 500; }
-.form-row.split { gap: 10px; }
-
-/* Custom Switch */
-.ios-switch { appearance: none; width: 50px; height: 30px; background: #3a3a3c; border-radius: 100px; position: relative; transition: 0.3s; }
-.ios-switch:checked { background: var(--accent-green); }
-.ios-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 26px; height: 26px; background: white; border-radius: 50%; transition: 0.3s; box-shadow: 0 2px 4px rgba(0,0,0,0.2); }
-.ios-switch:checked::after { transform: translateX(20px); }
-
-/* --- Food Scanner --- */
-.scanner-hero { text-align: center; border: 2px dashed #444; background: #111; cursor: pointer; padding: 40px 20px; }
-.camera-icon-large { display: flex; flex-direction: column; align-items: center; color: var(--accent-blue); gap: 10px; }
+.scanner-hero:active { background: #222; border-color: #666; }
 .file-upload-overlay input { display: none; }
-.preview-area img { max-width: 100%; border-radius: 12px; margin-top: 16px; display: none; }
+.camera-icon-large { color: var(--accent-blue); display: flex; flex-direction: column; align-items: center; gap: 12px; font-weight: 600; }
+#food-preview { max-width: 100%; border-radius: 12px; margin-top: 20px; display: none; border: 1px solid #333; }
 #food-preview[src] { display: block; }
-.ios-slider { width: 100%; accent-color: var(--accent-blue); }
+.ios-slider { width: 100%; accent-color: var(--accent-blue); height: 6px; }
 
-/* --- Navigation --- */
-.ios-tab-bar {
-  position: fixed; bottom: 0; left: 0; right: 0; height: 85px;
-  background: rgba(28, 28, 30, 0.85); backdrop-filter: blur(25px); -webkit-backdrop-filter: blur(25px);
-  border-top: 1px solid rgba(255,255,255,0.1);
-  display: flex; justify-content: space-around; padding-top: 10px; padding-bottom: var(--safe-area-bottom);
-  z-index: 999;
-}
-.tab-btn {
-  background: none; border: none; color: #8E8E93; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 10px; font-weight: 500; width: 100%;
-}
-.tab-btn svg { width: 26px; height: 26px; transition: 0.2s; }
-.tab-btn.active { color: var(--accent-green); }
-.tab-btn[data-target="nutrition"].active { color: var(--accent-orange); }
-.tab-btn[data-target="plan"].active { color: var(--accent-blue); }
-
-/* Progress Bars */
-.progress-stack { display: flex; flex-direction: column; gap: 10px; }
-.progress-item { font-size: 13px; }
-.progress-header { display: flex; justify-content: space-between; margin-bottom: 4px; }
-.progress-bar { height: 8px; background: #333; border-radius: 4px; overflow: hidden; }
-.progress-fill { height: 100%; background: white; border-radius: 4px; }
+/* Nutrition Progress Bars */
+.progress-stack { display: flex; flex-direction: column; gap: 16px; }
+.progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 14px; font-weight: 500; }
+.progress-bar { height: 10px; background: #333; border-radius: 10px; overflow: hidden; }
+.progress-fill { height: 100%; border-radius: 10px; transition: width 0.5s ease-out; background: white; }
 .progress-fill.protein { background: var(--accent-red); }
 .progress-fill.fat { background: var(--accent-orange); }
 .progress-fill.carbs { background: var(--accent-green); }
 
-/* Swipeable */
-.swipeable { transition: transform 0.2s ease-out; }
-.delete-btn { display: none; } /* Handled via swipe logic mostly, or visible on swipe */
+/* --- NAVIGATION BAR --- */
+.ios-tab-bar {
+  position: fixed; bottom: 0; left: 0; right: 0; height: var(--nav-height);
+  background: rgba(28, 28, 30, 0.92); 
+  backdrop-filter: blur(30px); -webkit-backdrop-filter: blur(30px);
+  border-top: 0.5px solid rgba(255,255,255,0.15);
+  display: flex; justify-content: space-around; padding-top: 12px; 
+  padding-bottom: var(--safe-area-bottom);
+  z-index: 1000;
+}
+.tab-btn {
+  background: none; border: none; color: #8E8E93; 
+  display: flex; flex-direction: column; align-items: center; gap: 5px; 
+  font-size: 10px; font-weight: 500; width: 100%; cursor: pointer;
+}
+.tab-btn svg { width: 24px; height: 24px; transition: transform 0.2s; }
+.tab-btn:active svg { transform: scale(0.9); }
+
+/* Active States colors */
+.tab-btn.active { color: var(--accent-green); }
+.tab-btn[data-target="nutrition"].active { color: var(--accent-orange); }
+.tab-btn[data-target="plan"].active { color: var(--accent-blue); }
+
+/* --- UTILS --- */
+.swipeable { transition: transform 0.2s cubic-bezier(0.2, 0.8, 0.2, 1); }
+.hidden-form { display: block; } /* Placeholder, falls JS Logik sichtbar macht */
