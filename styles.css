@@ -1197,20 +1197,26 @@ p {
 
 .mastery-list {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr;
   gap: var(--spacing-sm);
   margin-top: var(--spacing-sm);
 }
 
 .mastery-item {
   background: rgba(255, 255, 255, 0.02);
-  padding: var(--spacing-xs) var(--spacing-sm);
+  padding: var(--spacing-sm);
   border-radius: var(--radius-sm);
   border: 0.5px solid var(--border-subtle);
   font-size: 13px;
   font-weight: 600;
   color: var(--text-primary);
-  text-align: center;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-xs);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Toast Notification (defined inline in JS but documented here) */
