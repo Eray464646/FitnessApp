@@ -53,6 +53,11 @@
   --rank-diamond: #06b6d4; /* Cyan neon */
   --rank-unranked: #1e293b;
   
+  /* Form Element Colors (Slate Design System) */
+  --form-label: #94a3b8; /* Slate-400 for labels */
+  --form-input-bg: #1e293b; /* Slate-800 for input backgrounds */
+  --form-border: #334155; /* Slate-700 for borders */
+  
   /* Safe Areas */
   --safe-area-bottom: env(safe-area-inset-bottom, 20px);
   --nav-height: 80px;
@@ -750,7 +755,7 @@ main {
 
 label {
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--form-label);
   display: grid;
   gap: var(--spacing-xs);
   font-size: 0.85rem;
@@ -761,12 +766,12 @@ label {
 
 input,
 select {
-  border: 1px solid #334155;
+  border: 1px solid var(--form-border);
   border-radius: 12px;
   padding: 0 16px;
   min-height: 50px;
   font-size: 17px;
-  background: #1e293b;
+  background: var(--form-input-bg);
   color: var(--text-primary);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
