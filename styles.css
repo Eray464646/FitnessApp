@@ -551,6 +551,11 @@ main {
   width: 100%;
 }
 
+/* Form submit button spacing */
+.form-card .btn.full {
+  margin-top: 24px;
+}
+
 .tiny-btn {
   border: none;
   background: transparent;
@@ -735,27 +740,44 @@ main {
 .form-grid {
   display: grid;
   gap: var(--spacing-md);
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Force select elements to span full width for better readability */
+.form-grid label:has(select) {
+  grid-column: span 2;
 }
 
 label {
   font-weight: 600;
-  color: var(--text-primary);
+  color: #94a3b8;
   display: grid;
   gap: var(--spacing-xs);
-  font-size: 15px;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
 }
 
 input,
 select {
-  border: 0.5px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 12px var(--spacing-md);
+  border: 1px solid #334155;
+  border-radius: 12px;
+  padding: 0 16px;
+  min-height: 50px;
   font-size: 17px;
-  background: var(--bg-tertiary);
+  background: #1e293b;
   color: var(--text-primary);
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   font-family: inherit;
+}
+
+select {
+  padding-right: 40px;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
 }
 
 input:focus,
