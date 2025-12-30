@@ -429,6 +429,21 @@
               Reset Progress
             </button>
           </div>
+
+          <!-- Data Management Section -->
+          <div class="card form-card" style="margin-top: 16px;">
+            <div style="margin-bottom: 12px;">
+              <strong>Datenverwaltung</strong>
+              <p class="muted small">Exportiere deine Daten als Backup oder stelle ein vorheriges Backup wieder her.</p>
+            </div>
+            <button class="btn primary full" id="export-backup" style="margin-bottom: 12px;">
+              ⬇️ Backup speichern
+            </button>
+            <button class="btn ghost full" id="import-backup">
+              ⬆️ Backup laden
+            </button>
+            <input type="file" id="import-file" accept=".json" style="display: none;" />
+          </div>
         </section>
       </main>
 
