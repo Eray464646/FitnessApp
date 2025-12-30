@@ -225,6 +225,8 @@ const PUSHUP_DEBOUNCE_MS = 800;      // Minimum time between push-up transitions
 // UI interaction constants
 const SWIPE_DELETE_THRESHOLD = 60;   // Swipe distance in pixels to trigger delete
 const MAX_SWIPE_DISTANCE = 100;      // Maximum swipe distance before clamping
+const RELOAD_DELAY_MS = 1000;        // Delay before page reload after reset (ms)
+const TIMESTAMP_OFFSET_MS = 1000;    // Offset between injected workout timestamps (ms)
 
 // COCO Pose keypoint definitions
 const COCO_KEYPOINTS = [
@@ -2988,7 +2990,7 @@ function handleResetProgress() {
     // Reload page to ensure clean state
     setTimeout(() => {
       location.reload();
-    }, 1000);
+    }, RELOAD_DELAY_MS);
   }
   // Scenario B: Dev Cheat Code
   else if (password === "Kniebeugen") {
@@ -3002,7 +3004,7 @@ function handleResetProgress() {
         weight: 0,
         tempo: "kontrolliert",
         rom: "voll",
-        timestamp: Date.now() - (i * 1000) // Slightly different timestamps
+        timestamp: Date.now() - (i * TIMESTAMP_OFFSET_MS) // Slightly different timestamps
       };
       
       // Add to sets history
