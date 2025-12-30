@@ -3314,12 +3314,12 @@ function exportData() {
       return;
     }
     
-    // Parse state and add backup metadata
+    // Parse state and create a copy to add backup metadata
     const state = JSON.parse(stateData);
-    state._backupDate = new Date().toISOString();
+    const backupData = { ...state, _backupDate: new Date().toISOString() };
     
     // Convert to JSON string with pretty formatting
-    const jsonString = JSON.stringify(state, null, 2);
+    const jsonString = JSON.stringify(backupData, null, 2);
     
     // Create blob with MIME type application/json
     const blob = new Blob([jsonString], { type: 'application/json' });
@@ -3375,25 +3375,36 @@ function importData(event) {
       const data = JSON.parse(jsonString);
       
       // Validate backup structure
-      // Check for required keys: gamification, sets (or history), and profile
+      // Check for required keys: gamification, sets, profile, and other core state properties
       const hasGamification = data.gamification && typeof data.gamification === 'object';
       const hasSets = Array.isArray(data.sets);
       const hasProfile = data.profile && typeof data.profile === 'object';
+      const hasFoodEntries = Array.isArray(data.foodEntries);
+      const hasWeeklySummaries = Array.isArray(data.weeklySummaries);
+      const hasPlan = data.plan && typeof data.plan === 'object';
       
-      if (!hasGamification || !hasSets || !hasProfile) {
-        alert("Fehler: Ungültige Backup-Datei!\n\nDie Datei enthält nicht alle erforderlichen Daten.");
+      // Core validation: must have gamification, sets, and profile
+      const hasRequiredFields = hasGamification && hasSets && hasProfile;
+      
+      if (!hasRequiredFields) {
+        alert("Fehler: Ungültige Backup-Datei!\n\nDie Datei enthält nicht alle erforderlichen Daten (gamification, sets, profile).");
         event.target.value = ''; // Reset file input
         return;
       }
       
-      // All validation passed - save to localStorage
-      localStorage.setItem(STORAGE_KEY, jsonString);
+      // Remove backup metadata before saving
+      const { _backupDate, ...cleanData } = data;
       
-      // Show success message and reload
+      // All validation passed - save to localStorage
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanData));
+      
+      // Show success message and reload with delay
       alert("Backup erfolgreich geladen! App wird neu gestartet.");
       
-      // Reload page to apply changes
-      window.location.reload();
+      // Delay reload to give users time to read the message
+      setTimeout(() => {
+        window.location.reload();
+      }, 1500);
       
     } catch (error) {
       console.error('Import error:', error);
