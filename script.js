@@ -3297,6 +3297,134 @@ function handleResetProgress() {
   }
 }
 
+// ============================================================================
+// Data Backup & Restore Functions
+// ============================================================================
+
+/**
+ * Export complete app state as JSON file
+ */
+function exportData() {
+  try {
+    // Read complete state from localStorage
+    const stateData = localStorage.getItem(STORAGE_KEY);
+    
+    if (!stateData) {
+      alert("Keine Daten zum Exportieren gefunden!");
+      return;
+    }
+    
+    // Parse state and add backup metadata
+    const state = JSON.parse(stateData);
+    state._backupDate = new Date().toISOString();
+    
+    // Convert to JSON string with pretty formatting
+    const jsonString = JSON.stringify(state, null, 2);
+    
+    // Create blob with MIME type application/json
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    
+    // Generate filename with current date: fitsense_backup_YYYY-MM-DD.json
+    const date = new Date();
+    const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
+    const filename = `fitsense_backup_${dateStr}.json`;
+    
+    // Create download link and trigger download
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    
+    showToast(`✅ Backup gespeichert: ${filename}`);
+    setAIStatus("Backup erfolgreich", "info");
+    setTimeout(() => setAIStatus("KI bereit", "info"), 2000);
+    
+  } catch (error) {
+    console.error('Export error:', error);
+    alert("Fehler beim Exportieren der Daten!");
+    setAIStatus("Export fehlgeschlagen", "warn");
+  }
+}
+
+/**
+ * Import app state from JSON file
+ */
+function importData(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  
+  // Check file type
+  if (!file.name.endsWith('.json')) {
+    alert("Fehler: Bitte eine .json Datei auswählen!");
+    event.target.value = ''; // Reset file input
+    return;
+  }
+  
+  const reader = new FileReader();
+  
+  reader.onload = (e) => {
+    try {
+      // Parse JSON
+      const jsonString = e.target.result;
+      const data = JSON.parse(jsonString);
+      
+      // Validate backup structure
+      // Check for required keys: gamification, sets (or history), and profile
+      const hasGamification = data.gamification && typeof data.gamification === 'object';
+      const hasSets = Array.isArray(data.sets);
+      const hasProfile = data.profile && typeof data.profile === 'object';
+      
+      if (!hasGamification || !hasSets || !hasProfile) {
+        alert("Fehler: Ungültige Backup-Datei!\n\nDie Datei enthält nicht alle erforderlichen Daten.");
+        event.target.value = ''; // Reset file input
+        return;
+      }
+      
+      // All validation passed - save to localStorage
+      localStorage.setItem(STORAGE_KEY, jsonString);
+      
+      // Show success message and reload
+      alert("Backup erfolgreich geladen! App wird neu gestartet.");
+      
+      // Reload page to apply changes
+      window.location.reload();
+      
+    } catch (error) {
+      console.error('Import error:', error);
+      alert("Fehler: Ungültige Backup-Datei!\n\nDie Datei konnte nicht gelesen werden.");
+      event.target.value = ''; // Reset file input
+    }
+  };
+  
+  reader.onerror = () => {
+    alert("Fehler beim Lesen der Datei!");
+    event.target.value = ''; // Reset file input
+  };
+  
+  reader.readAsText(file);
+}
+
+/**
+ * Trigger file picker for import
+ */
+function triggerImportBackup() {
+  // Show confirmation dialog before opening file picker
+  const confirmed = confirm(
+    "Warnung: Deine aktuellen Daten werden überschrieben.\n\nMöchtest du fortfahren?"
+  );
+  
+  if (confirmed) {
+    // Trigger hidden file input
+    document.getElementById('import-file').click();
+  }
+}
+
 // API Status checking functions
 function bindProfile() {
   document.getElementById("camera-consent").addEventListener("change", (e) => {
@@ -3314,6 +3442,11 @@ function bindProfile() {
   
   // Add reset progress button listener
   document.getElementById("reset-progress").addEventListener("click", handleResetProgress);
+  
+  // Add backup/restore button listeners
+  document.getElementById("export-backup").addEventListener("click", exportData);
+  document.getElementById("import-backup").addEventListener("click", triggerImportBackup);
+  document.getElementById("import-file").addEventListener("change", importData);
 }
 
 document.getElementById("start-training").addEventListener("click", handleStartTraining);
