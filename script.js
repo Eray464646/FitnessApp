@@ -225,6 +225,8 @@ const PUSHUP_DEBOUNCE_MS = 800;      // Minimum time between push-up transitions
 // UI interaction constants
 const SWIPE_DELETE_THRESHOLD = 60;   // Swipe distance in pixels to trigger delete
 const MAX_SWIPE_DISTANCE = 100;      // Maximum swipe distance before clamping
+const RELOAD_DELAY_MS = 1000;        // Delay before page reload after reset (ms)
+const TIMESTAMP_OFFSET_MS = 1000;    // Offset between injected workout timestamps (ms)
 
 // COCO Pose keypoint definitions
 const COCO_KEYPOINTS = [
@@ -556,6 +558,72 @@ function onPoseResults(results) {
   }
 }
 
+/**
+ * Calculate symmetry penalty based on body tilt (shoulder and hip alignment)
+ * Returns a quality multiplier: 1.0 (no penalty) to 0.0 (severe tilt)
+ * 
+ * @param {Array} landmarks - MediaPipe pose landmarks (33 points)
+ * @returns {number} - Symmetry quality score (0-1)
+ */
+function calculateSymmetryPenalty(landmarks) {
+  // MediaPipe indices:
+  // Left Shoulder: 11, Right Shoulder: 12
+  // Left Hip: 23, Right Hip: 24
+  const leftShoulder = landmarks[11];
+  const rightShoulder = landmarks[12];
+  const leftHip = landmarks[23];
+  const rightHip = landmarks[24];
+  
+  // Check if all required landmarks are visible
+  if (!leftShoulder || !rightShoulder || !leftHip || !rightHip) {
+    return 1.0; // No penalty if landmarks aren't visible
+  }
+  
+  const minVisibility = 0.5;
+  if (leftShoulder.visibility < minVisibility || rightShoulder.visibility < minVisibility ||
+      leftHip.visibility < minVisibility || rightHip.visibility < minVisibility) {
+    return 1.0; // No penalty if landmarks have low visibility
+  }
+  
+  // Calculate body height (approximate from shoulders to hips)
+  const avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2;
+  const avgHipY = (leftHip.y + rightHip.y) / 2;
+  const bodyHeight = Math.abs(avgHipY - avgShoulderY);
+  
+  if (bodyHeight < 0.01) {
+    return 1.0; // Avoid division by zero
+  }
+  
+  // Calculate shoulder tilt (Y-coordinate difference)
+  const shoulderTilt = Math.abs(leftShoulder.y - rightShoulder.y);
+  const shoulderTiltPercent = (shoulderTilt / bodyHeight) * 100;
+  
+  // Calculate hip tilt (Y-coordinate difference)
+  const hipTilt = Math.abs(leftHip.y - rightHip.y);
+  const hipTiltPercent = (hipTilt / bodyHeight) * 100;
+  
+  // Take the maximum tilt as the overall asymmetry measure
+  const maxTiltPercent = Math.max(shoulderTiltPercent, hipTiltPercent);
+  
+  // Apply penalties based on tilt percentage
+  // > 10% tilt: Quality drops below 50% (Red)
+  // > 5% tilt: Quality drops below 80% (Orange)
+  // <= 5% tilt: No significant penalty (Green)
+  
+  let symmetryQuality = 1.0;
+  
+  if (maxTiltPercent > 10) {
+    // Severe tilt: drop to 30-50% quality (Red zone)
+    symmetryQuality = Math.max(0.3, 0.5 - (maxTiltPercent - 10) * 0.02);
+  } else if (maxTiltPercent > 5) {
+    // Moderate tilt: drop to 50-80% quality (Orange zone)
+    symmetryQuality = 0.8 - (maxTiltPercent - 5) * 0.06; // Linear decrease from 80% to 50%
+  }
+  // else: maxTiltPercent <= 5: symmetryQuality remains 1.0 (no penalty)
+  
+  return Math.max(0.0, Math.min(1.0, symmetryQuality)); // Clamp to [0, 1]
+}
+
 // Convert MediaPipe landmarks to our format and process
 function processPoseLandmarks(landmarks, worldLandmarks) {
   // Calculate average confidence across all landmarks
@@ -567,13 +635,20 @@ function processPoseLandmarks(landmarks, worldLandmarks) {
   // Count keypoints with good visibility
   const visibleKeypoints = landmarks.filter(lm => (lm.visibility || 0) > MIN_KEYPOINT_VISIBILITY).length;
   
+  // Calculate symmetry penalty (stricter form analysis)
+  const symmetryQuality = calculateSymmetryPenalty(landmarks);
+  
+  // Combine confidence with symmetry penalty for final posture score
+  // Both factors must be good for a high score
+  const postureScore = avgConfidence * symmetryQuality;
+  
   // Create frame data in our format
   const frame = {
     timestamp: Date.now(),
     keypointsTracked: visibleKeypoints,
     confidence: avgConfidence,
     stability: isStable ? "stable" : "shaky",
-    postureScore: avgConfidence,  // Use confidence as posture score
+    postureScore: postureScore,  // Now includes symmetry penalty
     keypoints: convertMediaPipeToCocoKeypoints(landmarks),
     perspective: "unknown"
   };
@@ -888,9 +963,10 @@ function drawMediaPipeSkeleton(results) {
     return;  // No person detected
   }
   
-  // Calculate current form quality (use average visibility as posture score)
+  // Calculate current form quality with symmetry penalty
   const avgVisibility = results.poseLandmarks.reduce((sum, lm) => sum + (lm.visibility || 0), 0) / results.poseLandmarks.length;
-  const formQuality = avgVisibility;  // This is a value between 0 and 1
+  const symmetryQuality = calculateSymmetryPenalty(results.poseLandmarks);
+  const formQuality = avgVisibility * symmetryQuality;  // Combined score (0-1)
   
   // Draw connections using MediaPipe's built-in connection pairs
   ctx.lineWidth = 3;
@@ -2879,6 +2955,78 @@ function hydrateProfile() {
   document.getElementById("wearable-toggle").checked = !!state.profile.wearable;
 }
 
+/**
+ * Handle Reset Progress button click
+ * Prompts user with password and either:
+ * - Resets progress if "Ja" or "ja" is entered
+ * - Injects dev cheat data if "Kniebeugen" is entered
+ */
+function handleResetProgress() {
+  const password = window.prompt("Bitte Kennwort eingeben:");
+  
+  if (!password) {
+    // User cancelled the prompt
+    return;
+  }
+  
+  // Scenario A: User Reset
+  if (password.toLowerCase() === "ja") {
+    // Reset gamification and userStats, keep settings
+    state.gamification = defaultGamification();
+    state.userStats = {
+      totalReps: 0,
+      totalSets: 0,
+      avgQuality: 0,
+      streak: 0,
+      lastWorkoutDate: null
+    };
+    
+    persist();
+    updateGamificationUI();
+    renderDashboard();
+    
+    showToast("✅ Progress zurückgesetzt!");
+    
+    // Reload page to ensure clean state
+    setTimeout(() => {
+      location.reload();
+    }, RELOAD_DELAY_MS);
+  }
+  // Scenario B: Dev Cheat Code
+  else if (password === "Kniebeugen") {
+    // Generate and save 5 perfect squat sessions
+    for (let i = 0; i < 5; i++) {
+      const fakeSet = {
+        id: Date.now() + i,
+        exercise: "Kniebeugen",
+        reps: 12,
+        quality: 95,
+        weight: 0,
+        tempo: "kontrolliert",
+        rom: "voll",
+        timestamp: Date.now() - (i * TIMESTAMP_OFFSET_MS) // Slightly different timestamps
+      };
+      
+      // Add to sets history
+      state.sets.push(fakeSet);
+      
+      // Process gamification for each set
+      processGamification("Kniebeugen", 12, 95, 0);
+    }
+    
+    persist();
+    updateGamificationUI();
+    renderSets();
+    renderDashboard();
+    
+    showToast("🎮 Dev Mode: 5 Squat Sessions injected!");
+  }
+  else {
+    // Invalid password
+    showToast("❌ Ungültiges Kennwort");
+  }
+}
+
 // API Status checking functions
 function bindProfile() {
   document.getElementById("camera-consent").addEventListener("change", (e) => {
@@ -2893,6 +3041,9 @@ function bindProfile() {
     state.profile.wearable = e.target.checked;
     persist();
   });
+  
+  // Add reset progress button listener
+  document.getElementById("reset-progress").addEventListener("click", handleResetProgress);
 }
 
 document.getElementById("start-training").addEventListener("click", handleStartTraining);
