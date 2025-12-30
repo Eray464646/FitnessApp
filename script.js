@@ -3390,13 +3390,12 @@ function importData(event) {
         return;
       }
       
-      // Remove backup metadata and create clean copy using JSON serialization
-      // This ensures deep cloning and prevents any reference issues
-      const { _backupDate, ...cleanData } = data;
-      const cleanJsonString = JSON.stringify(cleanData);
+      // Remove backup metadata and save to localStorage
+      // Delete metadata in place rather than creating a copy for better performance
+      delete data._backupDate;
       
       // All validation passed - save to localStorage
-      localStorage.setItem(STORAGE_KEY, cleanJsonString);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       
       // Show success message and reload with delay
       alert("Backup erfolgreich geladen! App wird neu gestartet.");
