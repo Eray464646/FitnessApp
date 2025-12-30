@@ -220,6 +220,7 @@ const SQUAT_UP_KNEE_ANGLE = 150;     // Knee angle threshold for up position
 // Push-up detection angles (in degrees)
 const PUSHUP_DOWN_ELBOW_ANGLE = 90;  // Elbow angle threshold for down position
 const PUSHUP_UP_ELBOW_ANGLE = 160;   // Elbow angle threshold for up position
+const PUSHUP_DEBOUNCE_MS = 800;      // Minimum time between push-up transitions (ms)
 
 // UI interaction constants
 const SWIPE_DELETE_THRESHOLD = 60;   // Swipe distance in pixels to trigger delete
@@ -302,6 +303,17 @@ function getKeypointColor(confidence, opacity = 1) {
   }
 }
 
+// Get form quality color based on posture score (0-1 range, e.g., 0.85 = 85% quality)
+function getFormQualityColor(quality, opacity = 1) {
+  if (quality > 0.80) {
+    return `rgba(34, 197, 94, ${opacity})`; // green (#22c55e) - good form
+  } else if (quality > 0.50) {
+    return `rgba(249, 115, 22, ${opacity})`; // orange (#f97316) - okay form
+  } else {
+    return `rgba(239, 68, 68, ${opacity})`; // red (#ef4444) - bad form
+  }
+}
+
 const defaultPlan = () => ({
   age: 28,
   gender: "divers",
@@ -322,7 +334,7 @@ const defaultPlan = () => ({
 const defaultGamification = () => ({
   userLevel: 1,
   currentXP: 0,
-  xpForNextLevel: 500,
+  xpForNextLevel: 250,  // Changed from 500 to 250 for faster first level-up
   streakMultiplier: 1.0,
   muscleMastery: {
     legs: { xp: 0, level: 1, rank: "Unranked" },
@@ -428,7 +440,10 @@ const motionTracker = {
   lastROM: "teilweise",
   lastTempo: "kontrolliert",
   squatPhase: "up",       // Track squat phase: "up" or "down"
-  lastHipAngle: 180       // Track last hip angle for rep counting
+  lastHipAngle: 180,      // Track last hip angle for rep counting
+  pushupPhase: "up",      // Track push-up phase separately: "up" or "down"
+  lastPushupUpTime: 0,    // Timestamp when last reached UP position
+  lastPushupDownTime: 0   // Timestamp when last reached DOWN position
 };
 
 function escapeHTML(str) {
@@ -777,29 +792,42 @@ function countPushupReps(landmarks) {
   // Calculate elbow angle
   const elbowAngle = calculateAngle(leftShoulder, leftElbow, leftWrist);
   
-  // Push-up detection using defined angle constants
-  // Down: elbow angle < PUSHUP_DOWN_ELBOW_ANGLE
-  // Up: elbow angle > PUSHUP_UP_ELBOW_ANGLE
+  // Push-up detection using stricter state machine with hysteresis
+  // State transitions:
+  // - UP -> DOWN: Only when elbow angle < PUSHUP_DOWN_ELBOW_ANGLE AND previous state was fully UP
+  // - DOWN -> UP: Only when elbow angle > PUSHUP_UP_ELBOW_ANGLE AND sufficient time has passed since last DOWN
   
-  if (motionTracker.squatPhase === "up" && elbowAngle < PUSHUP_DOWN_ELBOW_ANGLE) {
-    motionTracker.squatPhase = "down";
-    document.getElementById("training-feedback").innerHTML =
-      "<p class='title'>Abwärtsbewegung</p><p class='muted'>Halte den Rücken gerade</p>";
-  } else if (motionTracker.squatPhase === "down" && elbowAngle > PUSHUP_UP_ELBOW_ANGLE) {
-    // Check debouncing before counting rep
-    const now = Date.now();
-    if (now - lastRepTimestamp >= MIN_REP_INTERVAL_MS) {
-      motionTracker.squatPhase = "up";
-      repCount++;
-      lastRepTimestamp = now;  // Update timestamp for debouncing
-      document.getElementById("rep-count").textContent = repCount;
+  const now = Date.now();
+  
+  // Check if transitioning from UP to DOWN
+  if (motionTracker.pushupPhase === "up" && elbowAngle < PUSHUP_DOWN_ELBOW_ANGLE) {
+    // Only transition if we've been in UP phase long enough (or first time)
+    if (now - motionTracker.lastPushupUpTime >= PUSHUP_DEBOUNCE_MS || motionTracker.lastPushupUpTime === 0) {
+      motionTracker.pushupPhase = "down";
+      motionTracker.lastPushupDownTime = now;
       document.getElementById("training-feedback").innerHTML =
-        "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gut gemacht!</p>";
-      
-      motionTracker.lastQuality = 85 + Math.floor(Math.random() * 15);
-      
-      if (repCount >= AUTO_SAVE_REP_COUNT) {
-        saveSet(true);
+        "<p class='title'>Abwärtsbewegung</p><p class='muted'>Halte den Rücken gerade</p>";
+    }
+  } 
+  // Check if transitioning from DOWN to UP (count rep here)
+  else if (motionTracker.pushupPhase === "down" && elbowAngle > PUSHUP_UP_ELBOW_ANGLE) {
+    // Only count if we've been in DOWN phase long enough
+    if (now - motionTracker.lastPushupDownTime >= PUSHUP_DEBOUNCE_MS) {
+      // Additional check: ensure minimum time since last rep
+      if (now - lastRepTimestamp >= MIN_REP_INTERVAL_MS) {
+        motionTracker.pushupPhase = "up";
+        motionTracker.lastPushupUpTime = now;
+        repCount++;
+        lastRepTimestamp = now;  // Update timestamp for debouncing
+        document.getElementById("rep-count").textContent = repCount;
+        document.getElementById("training-feedback").innerHTML =
+          "<p class='title'>Saubere Wiederholung</p><p class='muted'>Gut gemacht!</p>";
+        
+        motionTracker.lastQuality = 85 + Math.floor(Math.random() * 15);
+        
+        if (repCount >= AUTO_SAVE_REP_COUNT) {
+          saveSet(true);
+        }
       }
     }
   }
@@ -860,6 +888,10 @@ function drawMediaPipeSkeleton(results) {
     return;  // No person detected
   }
   
+  // Calculate current form quality (use average visibility as posture score)
+  const avgVisibility = results.poseLandmarks.reduce((sum, lm) => sum + (lm.visibility || 0), 0) / results.poseLandmarks.length;
+  const formQuality = avgVisibility;  // This is a value between 0 and 1
+  
   // Draw connections using MediaPipe's built-in connection pairs
   ctx.lineWidth = 3;
   ctx.lineCap = 'round';
@@ -867,7 +899,7 @@ function drawMediaPipeSkeleton(results) {
   // Use our defined MediaPipe pose connections
   const connections = MEDIAPIPE_POSE_CONNECTIONS;
   
-  // Draw connections
+  // Draw connections with quality-based colors
   for (const [startIdx, endIdx] of connections) {
     const start = results.poseLandmarks[startIdx];
     const end = results.poseLandmarks[endIdx];
@@ -881,7 +913,8 @@ function drawMediaPipeSkeleton(results) {
       const avgConfidence = ((start.visibility || 0) + (end.visibility || 0)) / 2;
       const opacity = Math.min(1, Math.max(0.3, avgConfidence));
       
-      ctx.strokeStyle = getConfidenceColor(avgConfidence, opacity);
+      // Use form quality color instead of confidence color
+      ctx.strokeStyle = getFormQualityColor(formQuality, opacity);
       ctx.beginPath();
       ctx.moveTo(x1, y1);
       ctx.lineTo(x2, y2);
@@ -889,7 +922,7 @@ function drawMediaPipeSkeleton(results) {
     }
   }
   
-  // Draw landmarks
+  // Draw landmarks with quality-based colors
   for (const landmark of results.poseLandmarks) {
     if ((landmark.visibility || 0) > MIN_KEYPOINT_VISIBILITY) {
       const x = landmark.x * width;
@@ -898,7 +931,8 @@ function drawMediaPipeSkeleton(results) {
       const radius = 4 + confidence * 4;
       const opacity = Math.min(1, Math.max(0.5, confidence));
       
-      ctx.fillStyle = getKeypointColor(confidence, opacity);
+      // Use form quality color for joints
+      ctx.fillStyle = getFormQualityColor(formQuality, opacity);
       ctx.beginPath();
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
@@ -1694,7 +1728,10 @@ function startRepDetection() {
   
   // Reset motion tracker for new tracking session
   motionTracker.squatPhase = "up";
+  motionTracker.pushupPhase = "up";
   motionTracker.progress = 0;
+  motionTracker.lastPushupUpTime = 0;
+  motionTracker.lastPushupDownTime = 0;
   
   // Rep counting is now handled in processRepCounting() called from onPoseResults()
   // No need for separate interval
@@ -1776,6 +1813,24 @@ function saveSet(auto = false) {
     motionTracker.lastROM === "unvollständig" ? "teilweise" : motionTracker.lastROM || (repCount > 10 ? "voll" : "teilweise");
   const qualityScore =
     motionTracker.lastQuality > 0 ? Math.min(98, Math.max(60, motionTracker.lastQuality)) : Math.min(98, 70 + Math.round(Math.random() * 25));
+  
+  // Calculate average quality from frames for better coaching
+  let avgQuality = qualityScore;
+  if (poseState.currentSetFrames.length > 0) {
+    const totalQuality = poseState.currentSetFrames.reduce((sum, frame) => sum + (frame.postureScore || 0), 0);
+    avgQuality = Math.round((totalQuality / poseState.currentSetFrames.length) * 100);
+  }
+  
+  // Generate coaching tip based on average quality
+  let coachTip = "";
+  if (avgQuality < 50) {
+    coachTip = "Focus on control. Your movement was too unstable.";
+  } else if (avgQuality < 80) {
+    coachTip = "Good effort! Try to keep a consistent tempo next time.";
+  } else {
+    coachTip = "Perfect form! Keep it up.";
+  }
+  
   const set = {
     exercise: document.getElementById("exercise-select").value,
     reps: repCount,
@@ -1784,6 +1839,7 @@ function saveSet(auto = false) {
     quality: qualityScore,
     timestamp: new Date().toISOString(),
     auto,
+    coachTip,  // Add coaching tip to set
     // Store skeleton frames for replay
     frames: poseState.currentSetFrames.slice()
   };
@@ -1797,8 +1853,14 @@ function saveSet(auto = false) {
   poseState.currentSetFrames = [];
   document.getElementById("rep-count").textContent = "0";
   document.getElementById("tempo-info").textContent = "Tempo: —";
+  
+  // Show coaching tip in feedback
   document.getElementById("training-feedback").innerHTML =
-    "<p class='title'>Satz gespeichert</p><p class='muted'>Auto-Tracking aktiv</p>";
+    `<p class='title'>Satz gespeichert</p><p class='muted'>${escapeHTML(coachTip)}</p>`;
+  
+  // Show toast with coaching tip
+  showToast(`Set saved! ${coachTip}`);
+  
   persist();
   renderSets();
   renderDashboard();
