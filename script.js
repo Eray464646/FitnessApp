@@ -3375,15 +3375,13 @@ function importData(event) {
       const data = JSON.parse(jsonString);
       
       // Validate backup structure
-      // Check for required keys: gamification, sets, profile, and other core state properties
+      // Core required fields: gamification, sets, and profile
       const hasGamification = data.gamification && typeof data.gamification === 'object';
       const hasSets = Array.isArray(data.sets);
       const hasProfile = data.profile && typeof data.profile === 'object';
-      const hasFoodEntries = Array.isArray(data.foodEntries);
-      const hasWeeklySummaries = Array.isArray(data.weeklySummaries);
-      const hasPlan = data.plan && typeof data.plan === 'object';
       
       // Core validation: must have gamification, sets, and profile
+      // Optional fields (foodEntries, weeklySummaries, plan, nutritionGoals) will use defaults if missing
       const hasRequiredFields = hasGamification && hasSets && hasProfile;
       
       if (!hasRequiredFields) {
@@ -3392,11 +3390,13 @@ function importData(event) {
         return;
       }
       
-      // Remove backup metadata before saving
+      // Remove backup metadata and create clean copy using JSON serialization
+      // This ensures deep cloning and prevents any reference issues
       const { _backupDate, ...cleanData } = data;
+      const cleanJsonString = JSON.stringify(cleanData);
       
       // All validation passed - save to localStorage
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanData));
+      localStorage.setItem(STORAGE_KEY, cleanJsonString);
       
       // Show success message and reload with delay
       alert("Backup erfolgreich geladen! App wird neu gestartet.");
@@ -3404,7 +3404,7 @@ function importData(event) {
       // Delay reload to give users time to read the message
       setTimeout(() => {
         window.location.reload();
-      }, 1500);
+      }, RELOAD_DELAY_MS);
       
     } catch (error) {
       console.error('Import error:', error);
