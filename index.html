@@ -430,6 +430,58 @@
             </button>
           </div>
 
+          <!-- App Design Section (Theme Switcher) -->
+          <div class="card form-card" style="margin-top: 16px;">
+            <div style="margin-bottom: 12px;">
+              <strong>App Design</strong>
+              <p class="muted small">Wähle eine Farbpalette, die dir am besten gefällt.</p>
+            </div>
+            <div class="theme-switcher-container" style="background: transparent; border: none; box-shadow: none; padding: 0;">
+              <div class="theme-cards">
+                <div class="theme-card active" data-theme="standard" onclick="applyTheme('standard')">
+                  <span class="theme-card-icon">🟢</span>
+                  <span class="theme-card-name">Original</span>
+                  <span class="theme-card-desc">Standard</span>
+                  <div class="theme-card-preview">
+                    <span style="background: #bef264;"></span>
+                    <span style="background: #000000;"></span>
+                    <span style="background: #1e293b;"></span>
+                  </div>
+                </div>
+                <div class="theme-card" data-theme="athena" onclick="applyTheme('athena')">
+                  <span class="theme-card-icon">🔵</span>
+                  <span class="theme-card-name">Athena</span>
+                  <span class="theme-card-desc">Blue Focus</span>
+                  <div class="theme-card-preview">
+                    <span style="background: #2d7ff9;"></span>
+                    <span style="background: #0f1115;"></span>
+                    <span style="background: #1a1f2e;"></span>
+                  </div>
+                </div>
+                <div class="theme-card" data-theme="spartan" onclick="applyTheme('spartan')">
+                  <span class="theme-card-icon">🔴</span>
+                  <span class="theme-card-name">Spartan</span>
+                  <span class="theme-card-desc">Red Energy</span>
+                  <div class="theme-card-preview">
+                    <span style="background: #ef4444;"></span>
+                    <span style="background: #1a0505;"></span>
+                    <span style="background: #2d1212;"></span>
+                  </div>
+                </div>
+                <div class="theme-card" data-theme="coach" onclick="applyTheme('coach')">
+                  <span class="theme-card-icon">🟡</span>
+                  <span class="theme-card-name">Gold Coach</span>
+                  <span class="theme-card-desc">Premium</span>
+                  <div class="theme-card-preview">
+                    <span style="background: #fbbf24;"></span>
+                    <span style="background: #000000;"></span>
+                    <span style="background: #2d2410;"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- Data Management Section -->
           <div class="card form-card" style="margin-top: 16px;">
             <div style="margin-bottom: 12px;">

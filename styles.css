@@ -2,9 +2,18 @@
   /* Apple Fitness Design System */
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
   
-  /* Colors - Apple Fitness Activity Rings */
+  /* ============================================================================ */
+  /* THEME SYSTEM - Standard (FitSense) Theme */
+  /* ============================================================================ */
+  /* Primary Theme Colors - Default: Neon Lime/Dark (FitSense Brand) */
+  --primary-color: #bef264; /* Lime Green - FitSense brand color */
+  --primary-glow: rgba(190, 242, 100, 0.5);
+  --bg-color: #000000; /* Pure black background */
+  --card-bg: #1e293b; /* Dark slate card background */
+  
+  /* Colors - Apple Fitness Activity Rings (using primary color as exercise) */
   --color-move: #fa114f; /* Move ring - vibrant pink/red */
-  --color-exercise: #92e82a; /* Exercise ring - bright green */
+  --color-exercise: var(--primary-color); /* Exercise ring - uses primary theme color */
   --color-stand: #00d9ff; /* Stand ring - cyan/blue */
   
   /* Text Colors */
@@ -13,8 +22,8 @@
   --text-tertiary: #6e6e73; /* Medium gray */
   
   /* Background Layers (dark-first) */
-  --bg-primary: #000000; /* Deep black */
-  --bg-secondary: #1c1c1e; /* Dark gray (iOS card background) */
+  --bg-primary: var(--bg-color); /* Uses theme background */
+  --bg-secondary: var(--card-bg); /* Uses theme card background */
   --bg-tertiary: #2c2c2e; /* Lighter gray for elevation */
   
   /* Border & Divider */
@@ -66,6 +75,37 @@
   /* Legacy compatibility */
   color: var(--text-primary);
   background: var(--bg-primary);
+}
+
+/* ============================================================================ */
+/* THEME CLASSES - Alternative Color Palettes */
+/* ============================================================================ */
+
+/* Theme: Athena (Inspired by Freeletics - Bright Electric Blue) */
+body.theme-athena {
+  --primary-color: #2d7ff9;
+  --primary-glow: rgba(45, 127, 249, 0.5);
+  --bg-color: #0f1115; /* Deep Blue-Black */
+  --card-bg: #1a1f2e; /* Dark blue tint for cards */
+  --color-exercise: var(--primary-color);
+}
+
+/* Theme: Spartan (Inspired by "Workouts Zuhause" - Intense Red) */
+body.theme-spartan {
+  --primary-color: #ef4444;
+  --primary-glow: rgba(239, 68, 68, 0.5);
+  --bg-color: #1a0505; /* Dark Red-Black tint */
+  --card-bg: #2d1212; /* Dark red tint for cards */
+  --color-exercise: var(--primary-color);
+}
+
+/* Theme: Coach (Inspired by MyFitCoach - Premium Gold/Amber) */
+body.theme-coach {
+  --primary-color: #fbbf24;
+  --primary-glow: rgba(251, 191, 36, 0.5);
+  --bg-color: #000000; /* Pure Black */
+  --card-bg: #2d2410; /* Dark gold tint for cards */
+  --color-exercise: var(--primary-color);
 }
 
 * {
@@ -1250,6 +1290,124 @@ p {
 .toast-notification {
   /* Styles are applied inline via JavaScript */
   /* See showToast() function in script.js */
+}
+
+/* ============================================================================ */
+/* THEME SWITCHER UI */
+/* ============================================================================ */
+
+.theme-switcher-container {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  border: 0.5px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.theme-switcher-label {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-sm);
+  display: block;
+}
+
+.theme-cards {
+  display: flex;
+  gap: var(--spacing-sm);
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: var(--spacing-xs);
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.theme-cards::-webkit-scrollbar {
+  height: 4px;
+}
+
+.theme-cards::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 2px;
+}
+
+.theme-cards::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.theme-card {
+  flex: 0 0 auto;
+  width: 140px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 2px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-md);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.theme-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  pointer-events: none;
+}
+
+.theme-card:active {
+  transform: scale(0.96);
+}
+
+.theme-card.active {
+  border-color: var(--primary-color);
+  background: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 0 20px var(--primary-glow);
+}
+
+.theme-card-icon {
+  font-size: 32px;
+  margin-bottom: var(--spacing-xs);
+  display: block;
+  line-height: 1;
+}
+
+.theme-card-name {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  display: block;
+}
+
+.theme-card-desc {
+  font-size: 11px;
+  color: var(--text-secondary);
+  display: block;
+  line-height: 1.3;
+}
+
+/* Theme preview color bars */
+.theme-card-preview {
+  display: flex;
+  gap: 2px;
+  margin-top: var(--spacing-xs);
+  height: 4px;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.theme-card-preview span {
+  flex: 1;
+  display: block;
+  height: 100%;
 }
 
 /* Removed - integrated */
