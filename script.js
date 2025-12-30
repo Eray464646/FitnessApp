@@ -339,12 +339,12 @@ const defaultGamification = () => ({
   xpForNextLevel: 250,  // Changed from 500 to 250 for faster first level-up
   streakMultiplier: 1.0,
   muscleMastery: {
-    legs: { xp: 0, level: 1, rank: "Novice" },
-    chest: { xp: 0, level: 1, rank: "Novice" },
-    back: { xp: 0, level: 1, rank: "Novice" },
-    shoulders: { xp: 0, level: 1, rank: "Novice" },
-    arms: { xp: 0, level: 1, rank: "Novice" },
-    core: { xp: 0, level: 1, rank: "Novice" }
+    legs: { xp: 0, level: 1, rank: "Anfänger" },
+    chest: { xp: 0, level: 1, rank: "Anfänger" },
+    back: { xp: 0, level: 1, rank: "Anfänger" },
+    shoulders: { xp: 0, level: 1, rank: "Anfänger" },
+    arms: { xp: 0, level: 1, rank: "Anfänger" },
+    core: { xp: 0, level: 1, rank: "Anfänger" }
   }
 });
 
@@ -355,6 +355,7 @@ const state = (() => {
       return { 
         sets: [], 
         foodEntries: [], 
+        weeklySummaries: [],
         plan: defaultPlan(), 
         profile: {}, 
         nutritionGoals: null,
@@ -368,6 +369,11 @@ const state = (() => {
       parsed.gamification = defaultGamification();
     }
     
+    // Migration: Add weeklySummaries if it doesn't exist
+    if (!parsed.weeklySummaries) {
+      parsed.weeklySummaries = [];
+    }
+    
     // Ensure all muscle groups exist (in case of partial data)
     if (parsed.gamification && parsed.gamification.muscleMastery) {
       const defaultMuscles = defaultGamification().muscleMastery;
@@ -377,13 +383,14 @@ const state = (() => {
         }
       }
       
-      // Migration: Update old rank names to new system based on XP
+      // Migration: Update old rank names to new German system based on XP
       for (const muscle in parsed.gamification.muscleMastery) {
         const muscleData = parsed.gamification.muscleMastery[muscle];
-        if (muscleData.rank === 'Unranked' || muscleData.rank === 'Bronze' || 
-            muscleData.rank === 'Silver' || muscleData.rank === 'Gold' || 
-            muscleData.rank === 'Diamond') {
-          // Recalculate rank based on current XP using new system
+        if (muscleData.rank === 'Novice' || muscleData.rank === 'Rookie' || 
+            muscleData.rank === 'Pro' || muscleData.rank === 'Unranked' || 
+            muscleData.rank === 'Bronze' || muscleData.rank === 'Silver' || 
+            muscleData.rank === 'Gold' || muscleData.rank === 'Diamond') {
+          // Recalculate rank based on current XP using new German system
           const currentRank = getRankForMuscle(muscleData.xp || 0);
           muscleData.rank = currentRank.name;
         }
@@ -393,6 +400,7 @@ const state = (() => {
     return {
       sets: parsed.sets || [],
       foodEntries: parsed.foodEntries || [],
+      weeklySummaries: parsed.weeklySummaries || [],
       plan: parsed.plan || defaultPlan(),
       profile: parsed.profile || {},
       nutritionGoals: parsed.nutritionGoals || null,
@@ -403,6 +411,7 @@ const state = (() => {
     return { 
       sets: [], 
       foodEntries: [], 
+      weeklySummaries: [],
       plan: defaultPlan(), 
       profile: {}, 
       nutritionGoals: null,
@@ -1591,7 +1600,43 @@ function initSwipeHandlers() {
 
 function renderFoodLog() {
   const log = document.getElementById("food-log");
-  if (!state.foodEntries.length) {
+  
+  // Render archived weeks section
+  let archivedHTML = '';
+  if (state.weeklySummaries && state.weeklySummaries.length > 0) {
+    const weekItems = state.weeklySummaries
+      .reverse()
+      .map(week => `
+        <details class="log-item" style="cursor: pointer;">
+          <summary style="font-weight: 600; list-style: none;">
+            ${escapeHTML(week.label)} (Ø ${week.averages.calories} kcal)
+            <span class="muted small" style="font-weight: 400;">
+              ${week.startDate} bis ${week.endDate}
+            </span>
+          </summary>
+          <div style="margin-top: 8px; padding-top: 8px; border-top: 0.5px solid var(--border-subtle);">
+            <span class="muted small">
+              Protein ${week.averages.protein} g · 
+              KH ${week.averages.carbs} g · 
+              Fett ${week.averages.fat} g
+            </span>
+          </div>
+        </details>
+      `)
+      .join("");
+    
+    archivedHTML = `
+      <div style="margin-bottom: 16px;">
+        <div style="font-weight: 600; margin-bottom: 8px; color: var(--text-secondary);">
+          📦 Archivierte Wochen
+        </div>
+        ${weekItems}
+      </div>
+    `;
+  }
+  
+  // Render active days section
+  if (!state.foodEntries.length && !state.weeklySummaries.length) {
     log.innerHTML = `<div class="log-item muted">Noch keine Mahlzeiten erfasst.</div>`;
     return;
   }
@@ -1613,6 +1658,16 @@ function renderFoodLog() {
     carbs: acc.carbs + (entry.carbs || 0),
     fat: acc.fat + (entry.fat || 0)
   }), { calories: 0, protein: 0, carbs: 0, fat: 0 });
+  
+  // Active days header
+  let activeDaysHTML = '';
+  if (state.foodEntries.length > 0) {
+    activeDaysHTML = `
+      <div style="font-weight: 600; margin-bottom: 8px; color: var(--text-secondary);">
+        📅 Aktuelle Tage
+      </div>
+    `;
+  }
   
   // Render entries with delete buttons
   const entriesHTML = todayEntries
@@ -1648,7 +1703,7 @@ function renderFoodLog() {
     </div>
   ` : '';
   
-  log.innerHTML = entriesHTML + totalsHTML;
+  log.innerHTML = archivedHTML + activeDaysHTML + entriesHTML + totalsHTML;
   
   // Initialize swipe handlers
   initSwipeHandlers();
@@ -1963,11 +2018,11 @@ function saveSet(auto = false) {
 // GAMIFICATION SYSTEM
 // ============================================================================
 
-// Muscle Ranks & Tiers Configuration
+// Muscle Ranks & Tiers Configuration (German)
 const MUSCLE_RANKS = [
-  { name: "Novice", threshold: 0, color: "#1e293b", icon: "⚪" }, // Default Dark
-  { name: "Rookie", threshold: 250, color: "#cd7f32", icon: "🛡️" }, // Bronze
-  { name: "Pro", threshold: 1000, color: "#e2e8f0", icon: "⚔️" }, // Silver
+  { name: "Anfänger", threshold: 0, color: "#1e293b", icon: "⚪" }, // Default Dark
+  { name: "Amateur", threshold: 250, color: "#cd7f32", icon: "🛡️" }, // Bronze
+  { name: "Profi", threshold: 1000, color: "#c0c0c0", icon: "⚔️" }, // Silver
   { name: "Elite", threshold: 2500, color: "#ffd700", icon: "🏆" }, // Gold
   { name: "Titan", threshold: 5000, color: "#00e5ff", icon: "💎" } // Diamond/Neon
 ];
@@ -2149,8 +2204,8 @@ function processGamification(exerciseName, reps, quality, weight = 0) {
       
       state.gamification.muscleMastery[muscle].rank = newRankObj.name;
       
-      // Show rank up notification (skip if upgrading from Novice to avoid spam on first progression)
-      if (newRankObj.name !== oldRank && oldRank !== 'Novice' && oldRank !== 'Unranked') {
+      // Show rank up notification (skip if upgrading from Anfänger to avoid spam on first progression)
+      if (newRankObj.name !== oldRank && oldRank !== 'Anfänger' && oldRank !== 'Novice' && oldRank !== 'Unranked') {
         showToast(`${newRankObj.icon} ${muscle.toUpperCase()} erreicht ${newRankObj.name} Rang!`);
       }
     }
@@ -2652,6 +2707,40 @@ function handleCalorieCalculator(evt) {
   
   setAIStatus('Kalorien berechnet', 'info');
   setTimeout(() => setAIStatus('KI bereit', 'info'), 2000);
+  
+  // Save calculator inputs to profile
+  saveCalorieCalculatorInputs(gender, age, height, weight, activity, goal);
+}
+
+/**
+ * Save calorie calculator inputs to localStorage
+ */
+function saveCalorieCalculatorInputs(gender, age, height, weight, activity, goal) {
+  state.profile.calculatorInputs = {
+    gender,
+    age,
+    height,
+    weight,
+    activity,
+    goal
+  };
+  persist();
+}
+
+/**
+ * Restore calorie calculator inputs from localStorage
+ */
+function restoreCalorieCalculatorInputs() {
+  if (state.profile.calculatorInputs) {
+    const inputs = state.profile.calculatorInputs;
+    
+    if (inputs.gender) document.getElementById('calc-gender').value = inputs.gender;
+    if (inputs.age) document.getElementById('calc-age').value = inputs.age;
+    if (inputs.height) document.getElementById('calc-height').value = inputs.height;
+    if (inputs.weight) document.getElementById('calc-weight').value = inputs.weight;
+    if (inputs.activity) document.getElementById('calc-activity').value = inputs.activity;
+    if (inputs.goal) document.getElementById('calc-goal').value = inputs.goal;
+  }
 }
 
 function updateNutritionProgress() {
@@ -2728,6 +2817,107 @@ function updateNutritionProgress() {
   document.getElementById('nutrition-progress-card').style.display = 'block';
 }
 
+// ============================================================================
+// SMART NUTRITION HISTORY (Weekly Archiving)
+// ============================================================================
+
+/**
+ * Check and archive food entries into weekly summaries
+ * Groups entries by unique dates and archives oldest 7 days when threshold is reached
+ */
+function checkAndArchiveWeeks() {
+  // Get all unique dates from food entries
+  const uniqueDates = new Set();
+  
+  state.foodEntries.forEach(entry => {
+    if (entry.timestamp) {
+      const timestamp = typeof entry.timestamp === 'number'
+        ? new Date(entry.timestamp).toISOString().slice(0, 10)
+        : typeof entry.timestamp === 'string' ? entry.timestamp.slice(0, 10) : '';
+      if (timestamp) {
+        uniqueDates.add(timestamp);
+      }
+    }
+  });
+  
+  // Convert to sorted array (oldest first)
+  const sortedDates = Array.from(uniqueDates).sort();
+  
+  // Check if we have 7 or more distinct days
+  if (sortedDates.length >= 7) {
+    // Take the oldest 7 dates
+    const datesToArchive = sortedDates.slice(0, 7);
+    const firstDate = datesToArchive[0];
+    const lastDate = datesToArchive[6];
+    
+    // Calculate averages for these 7 days
+    const entriesToArchive = state.foodEntries.filter(entry => {
+      const timestamp = typeof entry.timestamp === 'number'
+        ? new Date(entry.timestamp).toISOString().slice(0, 10)
+        : typeof entry.timestamp === 'string' ? entry.timestamp.slice(0, 10) : '';
+      return datesToArchive.includes(timestamp);
+    });
+    
+    // Group by date and calculate daily totals
+    const dailyTotals = {};
+    datesToArchive.forEach(date => {
+      dailyTotals[date] = { calories: 0, protein: 0, carbs: 0, fat: 0 };
+    });
+    
+    entriesToArchive.forEach(entry => {
+      const timestamp = typeof entry.timestamp === 'number'
+        ? new Date(entry.timestamp).toISOString().slice(0, 10)
+        : typeof entry.timestamp === 'string' ? entry.timestamp.slice(0, 10) : '';
+      if (dailyTotals[timestamp]) {
+        dailyTotals[timestamp].calories += entry.calories || 0;
+        dailyTotals[timestamp].protein += entry.protein || 0;
+        dailyTotals[timestamp].carbs += entry.carbs || 0;
+        dailyTotals[timestamp].fat += entry.fat || 0;
+      }
+    });
+    
+    // Calculate averages across 7 days
+    const totalCalories = Object.values(dailyTotals).reduce((sum, day) => sum + day.calories, 0);
+    const totalProtein = Object.values(dailyTotals).reduce((sum, day) => sum + day.protein, 0);
+    const totalCarbs = Object.values(dailyTotals).reduce((sum, day) => sum + day.carbs, 0);
+    const totalFat = Object.values(dailyTotals).reduce((sum, day) => sum + day.fat, 0);
+    
+    const weekSummary = {
+      id: "week_" + Date.now(),
+      label: "Woche " + (state.weeklySummaries.length + 1),
+      startDate: firstDate,
+      endDate: lastDate,
+      averages: {
+        calories: Math.round(totalCalories / 7),
+        protein: Math.round(totalProtein / 7),
+        carbs: Math.round(totalCarbs / 7),
+        fat: Math.round(totalFat / 7)
+      }
+    };
+    
+    // Archive the summary
+    state.weeklySummaries.push(weekSummary);
+    
+    // Remove archived entries from foodEntries
+    state.foodEntries = state.foodEntries.filter(entry => {
+      const timestamp = typeof entry.timestamp === 'number'
+        ? new Date(entry.timestamp).toISOString().slice(0, 10)
+        : typeof entry.timestamp === 'string' ? entry.timestamp.slice(0, 10) : '';
+      return !datesToArchive.includes(timestamp);
+    });
+    
+    // Persist changes
+    persist();
+    
+    // Show notification
+    showToast(`📦 ${weekSummary.label} archiviert (Ø ${weekSummary.averages.calories} kcal)`);
+    
+    return true;
+  }
+  
+  return false;
+}
+
 function saveFoodEntry() {
   if (!lastFoodDetection) {
     document.getElementById("food-details").innerHTML = "<p class='muted'>Bitte zuerst ein Foto wählen.</p>";
@@ -2740,6 +2930,10 @@ function saveFoodEntry() {
     timestamp: new Date().toISOString()
   };
   state.foodEntries.push(entry);
+  
+  // Check and archive weeks if needed
+  checkAndArchiveWeeks();
+  
   persist();
   renderFoodLog();
   renderDashboard();
@@ -2999,11 +3193,12 @@ function hydrateProfile() {
 /**
  * Handle Reset Progress button click
  * Prompts user with password and either:
- * - Resets progress if "Ja" or "ja" is entered
- * - Injects dev cheat data if "Kniebeugen" is entered
+ * - Resets progress if "Ja" is entered
+ * - Injects squat cheat data if "Kniebeugen" is entered
+ * - Injects pushup cheat data if "Liegestütze" is entered
  */
 function handleResetProgress() {
-  const password = window.prompt("Bitte Kennwort eingeben:");
+  const password = window.prompt("Zum Zurücksetzen bitte 'Ja' eingeben:\n(Hinweis: Aktion kann nicht rückgängig gemacht werden!)");
   
   if (!password) {
     // User cancelled the prompt
@@ -3011,7 +3206,7 @@ function handleResetProgress() {
   }
   
   // Scenario A: User Reset
-  if (password.toLowerCase() === "ja") {
+  if (password === "Ja") {
     // Reset gamification and userStats, keep settings
     state.gamification = defaultGamification();
     state.userStats = {
@@ -3033,7 +3228,7 @@ function handleResetProgress() {
       location.reload();
     }, RELOAD_DELAY_MS);
   }
-  // Scenario B: Dev Cheat Code
+  // Scenario B: Dev Cheat Code - Kniebeugen
   else if (password === "Kniebeugen") {
     // Generate and save 5 perfect squat sessions
     for (let i = 0; i < 5; i++) {
@@ -3061,6 +3256,35 @@ function handleResetProgress() {
     renderDashboard();
     
     showToast("🎮 Dev Mode: 5 Squat Sessions injected!");
+  }
+  // Scenario C: Dev Cheat Code - Liegestütze
+  else if (password === "Liegestütze") {
+    // Generate and save 10 perfect pushup sessions
+    for (let i = 0; i < 10; i++) {
+      const fakeSet = {
+        id: Date.now() + i,
+        exercise: "Liegestütze",
+        reps: 12,
+        quality: 95,
+        weight: 0,
+        tempo: "kontrolliert",
+        rom: "voll",
+        timestamp: Date.now() - (i * TIMESTAMP_OFFSET_MS) // Slightly different timestamps
+      };
+      
+      // Add to sets history
+      state.sets.push(fakeSet);
+      
+      // Process gamification for each set (will update both chest and arms)
+      processGamification("Liegestütze", 12, 95, 0);
+    }
+    
+    persist();
+    updateGamificationUI();
+    renderSets();
+    renderDashboard();
+    
+    showToast("🎮 Dev Mode: 10 Pushup Sessions injected!");
   }
   else {
     // Invalid password
@@ -3096,6 +3320,23 @@ document.getElementById("portion-slider").addEventListener("input", renderFoodDe
 document.getElementById("save-food").addEventListener("click", saveFoodEntry);
 document.getElementById("plan-form").addEventListener("submit", generatePlan);
 document.getElementById("calorie-calculator-form").addEventListener("submit", handleCalorieCalculator);
+
+// Add change event listeners to calorie calculator inputs for persistence
+['calc-gender', 'calc-age', 'calc-height', 'calc-weight', 'calc-activity', 'calc-goal'].forEach(id => {
+  const elem = document.getElementById(id);
+  if (elem) {
+    elem.addEventListener('change', () => {
+      const gender = document.getElementById('calc-gender').value;
+      const age = parseInt(document.getElementById('calc-age').value) || 0;
+      const height = parseInt(document.getElementById('calc-height').value) || 0;
+      const weight = parseInt(document.getElementById('calc-weight').value) || 0;
+      const activity = document.getElementById('calc-activity').value;
+      const goal = document.getElementById('calc-goal').value;
+      saveCalorieCalculatorInputs(gender, age, height, weight, activity, goal);
+    });
+  }
+});
+
 document.getElementById("camera-facing").addEventListener("change", async (e) => {
   activeFacingMode = e.target.value;
   if (cameraStream) {
@@ -3115,6 +3356,10 @@ renderDashboard();
 updateReplayLog();
 updateNutritionProgress();
 updateGamificationUI();
+restoreCalorieCalculatorInputs();
+
+// Check and archive weeks on page load
+checkAndArchiveWeeks();
 
 // Check backend health on page load
 checkBackendHealth();
