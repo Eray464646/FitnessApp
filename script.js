@@ -303,7 +303,7 @@ function getKeypointColor(confidence, opacity = 1) {
   }
 }
 
-// Get form quality color based on posture score (0-100% quality)
+// Get form quality color based on posture score (0-1 range, e.g., 0.85 = 85% quality)
 function getFormQualityColor(quality, opacity = 1) {
   if (quality > 0.80) {
     return `rgba(34, 197, 94, ${opacity})`; // green (#22c55e) - good form
@@ -1839,7 +1839,7 @@ function saveSet(auto = false) {
     quality: qualityScore,
     timestamp: new Date().toISOString(),
     auto,
-    coachTip: coachTip,  // Add coaching tip to set
+    coachTip,  // Add coaching tip to set
     // Store skeleton frames for replay
     frames: poseState.currentSetFrames.slice()
   };
