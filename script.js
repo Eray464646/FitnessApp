@@ -339,12 +339,12 @@ const defaultGamification = () => ({
   xpForNextLevel: 250,  // Changed from 500 to 250 for faster first level-up
   streakMultiplier: 1.0,
   muscleMastery: {
-    legs: { xp: 0, level: 1, rank: "Unranked" },
-    chest: { xp: 0, level: 1, rank: "Unranked" },
-    back: { xp: 0, level: 1, rank: "Unranked" },
-    shoulders: { xp: 0, level: 1, rank: "Unranked" },
-    arms: { xp: 0, level: 1, rank: "Unranked" },
-    core: { xp: 0, level: 1, rank: "Unranked" }
+    legs: { xp: 0, level: 1, rank: "Novice" },
+    chest: { xp: 0, level: 1, rank: "Novice" },
+    back: { xp: 0, level: 1, rank: "Novice" },
+    shoulders: { xp: 0, level: 1, rank: "Novice" },
+    arms: { xp: 0, level: 1, rank: "Novice" },
+    core: { xp: 0, level: 1, rank: "Novice" }
   }
 });
 
@@ -374,6 +374,18 @@ const state = (() => {
       for (const muscle in defaultMuscles) {
         if (!parsed.gamification.muscleMastery[muscle]) {
           parsed.gamification.muscleMastery[muscle] = defaultMuscles[muscle];
+        }
+      }
+      
+      // Migration: Update old rank names to new system based on XP
+      for (const muscle in parsed.gamification.muscleMastery) {
+        const muscleData = parsed.gamification.muscleMastery[muscle];
+        if (muscleData.rank === 'Unranked' || muscleData.rank === 'Bronze' || 
+            muscleData.rank === 'Silver' || muscleData.rank === 'Gold' || 
+            muscleData.rank === 'Diamond') {
+          // Recalculate rank based on current XP using new system
+          const currentRank = getRankForMuscle(muscleData.xp || 0);
+          muscleData.rank = currentRank.name;
         }
       }
     }
@@ -1951,6 +1963,35 @@ function saveSet(auto = false) {
 // GAMIFICATION SYSTEM
 // ============================================================================
 
+// Muscle Ranks & Tiers Configuration
+const MUSCLE_RANKS = [
+  { name: "Novice", threshold: 0, color: "#1e293b", icon: "⚪" }, // Default Dark
+  { name: "Rookie", threshold: 250, color: "#cd7f32", icon: "🛡️" }, // Bronze
+  { name: "Pro", threshold: 1000, color: "#c0c0c0", icon: "⚔️" }, // Silver
+  { name: "Elite", threshold: 2500, color: "#ffd700", icon: "🏆" }, // Gold
+  { name: "Titan", threshold: 5000, color: "#00e5ff", icon: "💎" } // Diamond/Neon
+];
+
+/**
+ * Get rank for a specific muscle based on XP
+ * @param {number} xp - Current XP for the muscle
+ * @returns {Object} Rank object with name, threshold, color, icon
+ */
+function getRankForMuscle(xp) {
+  // Find the highest tier where currentXP >= threshold
+  let currentRank = MUSCLE_RANKS[0]; // Default to Novice
+  
+  for (const rank of MUSCLE_RANKS) {
+    if (xp >= rank.threshold) {
+      currentRank = rank;
+    } else {
+      break; // Stop at first threshold we don't meet
+    }
+  }
+  
+  return currentRank;
+}
+
 // Exercise to Muscle Group Mapping
 const EXERCISE_MUSCLE_MAP = {
   // Legs
@@ -2090,31 +2131,41 @@ function processGamification(exerciseName, reps, quality, weight = 0) {
   // Add to global XP
   state.gamification.currentXP += xpGained;
   
-  // Identify target muscle group
+  // Identify target muscle group(s)
   const exerciseLower = exerciseName.toLowerCase();
-  let targetMuscle = null;
+  const targetMuscles = [];
   
   for (const [key, muscle] of Object.entries(EXERCISE_MUSCLE_MAP)) {
     if (exerciseLower.includes(key)) {
-      targetMuscle = muscle;
-      break;
+      targetMuscles.push({ muscle, xp: xpGained });
+      break; // Found primary muscle
     }
   }
   
-  // Add XP to muscle group if identified
-  if (targetMuscle && state.gamification.muscleMastery[targetMuscle]) {
-    state.gamification.muscleMastery[targetMuscle].xp += xpGained;
-    
-    // Update muscle rank
-    const muscleXP = state.gamification.muscleMastery[targetMuscle].xp;
-    const newRank = getRankFromXP(muscleXP);
-    const oldRank = state.gamification.muscleMastery[targetMuscle].rank;
-    
-    state.gamification.muscleMastery[targetMuscle].rank = newRank;
-    
-    // Show rank up notification
-    if (newRank !== oldRank) {
-      showToast(`🎯 ${targetMuscle.toUpperCase()} erreicht ${newRank} Rang!`);
+  // Special handling for Liegestütze/Pushups - add secondary muscle (Arms at 50% XP)
+  if (exerciseLower.includes('liegestütze') || exerciseLower.includes('push-up') || exerciseLower.includes('pushup')) {
+    // Primary muscle is chest (already added above)
+    // Add arms as secondary muscle at 50% XP
+    const secondaryXP = Math.round(xpGained * 0.5);
+    targetMuscles.push({ muscle: 'arms', xp: secondaryXP });
+  }
+  
+  // Add XP to all target muscle groups
+  for (const { muscle, xp } of targetMuscles) {
+    if (state.gamification.muscleMastery[muscle]) {
+      state.gamification.muscleMastery[muscle].xp += xp;
+      
+      // Update muscle rank using new rank system
+      const muscleXP = state.gamification.muscleMastery[muscle].xp;
+      const newRankObj = getRankForMuscle(muscleXP);
+      const oldRank = state.gamification.muscleMastery[muscle].rank;
+      
+      state.gamification.muscleMastery[muscle].rank = newRankObj.name;
+      
+      // Show rank up notification
+      if (newRankObj.name !== oldRank && oldRank !== 'Unranked') {
+        showToast(`${newRankObj.icon} ${muscle.toUpperCase()} erreicht ${newRankObj.name} Rang!`);
+      }
     }
   }
   
@@ -2159,43 +2210,46 @@ function updateGamificationUI() {
     xpText.textContent = `${state.gamification.currentXP} / ${state.gamification.xpForNextLevel} XP`;
   }
   
-  // Update bodygraph muscle colors
+  // Update bodygraph muscle colors using new MUSCLE_RANKS system
   for (const [muscle, data] of Object.entries(state.gamification.muscleMastery)) {
     const pathElement = document.getElementById(`poly-${muscle}`);
     if (pathElement) {
-      const rank = data.rank;
-      let fillColor = 'var(--rank-unranked)';
-      let glowEffect = 'none';
+      // Get current rank based on XP
+      const rankObj = getRankForMuscle(data.xp);
       
-      switch (rank) {
-        case 'Bronze':
-          fillColor = 'var(--rank-bronze)';
-          break;
-        case 'Silver':
-          fillColor = 'var(--rank-silver)';
-          break;
-        case 'Gold':
-          fillColor = 'var(--rank-gold)';
-          glowEffect = '0 0 12px rgba(251, 191, 36, 0.6)';
-          break;
-        case 'Diamond':
-          fillColor = 'var(--rank-diamond)';
-          glowEffect = '0 0 16px rgba(6, 182, 212, 0.8)';
-          break;
+      // Apply color
+      pathElement.style.fill = rankObj.color;
+      
+      // Add glow for Elite and Titan ranks
+      if (rankObj.name === 'Elite') {
+        pathElement.style.filter = 'drop-shadow(0 0 12px rgba(255, 215, 0, 0.6))';
+      } else if (rankObj.name === 'Titan') {
+        pathElement.style.filter = 'drop-shadow(0 0 16px rgba(0, 229, 255, 0.8))';
+      } else {
+        pathElement.style.filter = 'none';
       }
-      
-      pathElement.style.fill = fillColor;
-      pathElement.style.filter = glowEffect !== 'none' ? `drop-shadow(${glowEffect})` : 'none';
     }
   }
   
-  // Update mastery list
+  // Update mastery list with detailed progress
   const masteryList = document.getElementById('mastery-list');
   if (masteryList) {
     const entries = Object.entries(state.gamification.muscleMastery)
       .map(([muscle, data]) => {
         const muscleLabel = muscle.charAt(0).toUpperCase() + muscle.slice(1);
-        return `<span class="mastery-item">${muscleLabel}: ${data.rank}</span>`;
+        const currentRank = getRankForMuscle(data.xp);
+        
+        // Find next rank threshold
+        const currentRankIndex = MUSCLE_RANKS.findIndex(r => r.name === currentRank.name);
+        const nextRank = MUSCLE_RANKS[currentRankIndex + 1];
+        const nextThreshold = nextRank ? nextRank.threshold : currentRank.threshold;
+        
+        // Format: [Icon] [Muscle Name]: [Rank Name] (XP/NextTarget)
+        const progressText = nextRank 
+          ? `(${data.xp}/${nextThreshold})`
+          : `(${data.xp} MAX)`;
+        
+        return `<span class="mastery-item">${currentRank.icon} ${muscleLabel}: ${currentRank.name} ${progressText}</span>`;
       })
       .join('');
     masteryList.innerHTML = entries;
