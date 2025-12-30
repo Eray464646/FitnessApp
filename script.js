@@ -23,6 +23,11 @@ const ADDITIONAL_ITEMS_SUFFIX = ' u.a.';  // Suffix for truncated multi-item lis
 const VALID_FOOD_NAME_CHARS_REGEX = /^[^a-zA-Z0-9äöüÄÖÜß]+$/;  // Pattern to reject punctuation-only names
 
 // ============================================================================
+// Nutrition Archiving Configuration
+// ============================================================================
+const ARCHIVE_THRESHOLD_DAYS = 7;  // Number of days before archiving into weekly summary
+
+// ============================================================================
 // Image Compression Utility
 // ============================================================================
 // Compress and resize image to reduce payload size and avoid timeouts
@@ -1604,7 +1609,7 @@ function renderFoodLog() {
   // Render archived weeks section
   let archivedHTML = '';
   if (state.weeklySummaries && state.weeklySummaries.length > 0) {
-    const weekItems = state.weeklySummaries
+    const weekItems = [...state.weeklySummaries]
       .reverse()
       .map(week => `
         <details class="log-item" style="cursor: pointer;">
@@ -2843,12 +2848,12 @@ function checkAndArchiveWeeks() {
   // Convert to sorted array (oldest first)
   const sortedDates = Array.from(uniqueDates).sort();
   
-  // Check if we have 7 or more distinct days
-  if (sortedDates.length >= 7) {
-    // Take the oldest 7 dates
-    const datesToArchive = sortedDates.slice(0, 7);
+  // Check if we have ARCHIVE_THRESHOLD_DAYS or more distinct days
+  if (sortedDates.length >= ARCHIVE_THRESHOLD_DAYS) {
+    // Take the oldest ARCHIVE_THRESHOLD_DAYS dates
+    const datesToArchive = sortedDates.slice(0, ARCHIVE_THRESHOLD_DAYS);
     const firstDate = datesToArchive[0];
-    const lastDate = datesToArchive[6];
+    const lastDate = datesToArchive[ARCHIVE_THRESHOLD_DAYS - 1];
     
     // Calculate averages for these 7 days
     const entriesToArchive = state.foodEntries.filter(entry => {
@@ -2876,7 +2881,7 @@ function checkAndArchiveWeeks() {
       }
     });
     
-    // Calculate averages across 7 days
+    // Calculate averages across ARCHIVE_THRESHOLD_DAYS days
     const totalCalories = Object.values(dailyTotals).reduce((sum, day) => sum + day.calories, 0);
     const totalProtein = Object.values(dailyTotals).reduce((sum, day) => sum + day.protein, 0);
     const totalCarbs = Object.values(dailyTotals).reduce((sum, day) => sum + day.carbs, 0);
@@ -2888,10 +2893,10 @@ function checkAndArchiveWeeks() {
       startDate: firstDate,
       endDate: lastDate,
       averages: {
-        calories: Math.round(totalCalories / 7),
-        protein: Math.round(totalProtein / 7),
-        carbs: Math.round(totalCarbs / 7),
-        fat: Math.round(totalFat / 7)
+        calories: Math.round(totalCalories / ARCHIVE_THRESHOLD_DAYS),
+        protein: Math.round(totalProtein / ARCHIVE_THRESHOLD_DAYS),
+        carbs: Math.round(totalCarbs / ARCHIVE_THRESHOLD_DAYS),
+        fat: Math.round(totalFat / ARCHIVE_THRESHOLD_DAYS)
       }
     };
     
@@ -3322,17 +3327,28 @@ document.getElementById("plan-form").addEventListener("submit", generatePlan);
 document.getElementById("calorie-calculator-form").addEventListener("submit", handleCalorieCalculator);
 
 // Add change event listeners to calorie calculator inputs for persistence
-['calc-gender', 'calc-age', 'calc-height', 'calc-weight', 'calc-activity', 'calc-goal'].forEach(id => {
-  const elem = document.getElementById(id);
+// Cache elements for better performance
+const calcInputs = {
+  gender: document.getElementById('calc-gender'),
+  age: document.getElementById('calc-age'),
+  height: document.getElementById('calc-height'),
+  weight: document.getElementById('calc-weight'),
+  activity: document.getElementById('calc-activity'),
+  goal: document.getElementById('calc-goal')
+};
+
+// Add change listener to each cached element
+Object.values(calcInputs).forEach(elem => {
   if (elem) {
     elem.addEventListener('change', () => {
-      const gender = document.getElementById('calc-gender').value;
-      const age = parseInt(document.getElementById('calc-age').value) || 0;
-      const height = parseInt(document.getElementById('calc-height').value) || 0;
-      const weight = parseInt(document.getElementById('calc-weight').value) || 0;
-      const activity = document.getElementById('calc-activity').value;
-      const goal = document.getElementById('calc-goal').value;
-      saveCalorieCalculatorInputs(gender, age, height, weight, activity, goal);
+      saveCalorieCalculatorInputs(
+        calcInputs.gender.value,
+        parseInt(calcInputs.age.value) || 0,
+        parseInt(calcInputs.height.value) || 0,
+        parseInt(calcInputs.weight.value) || 0,
+        calcInputs.activity.value,
+        calcInputs.goal.value
+      );
     });
   }
 });
