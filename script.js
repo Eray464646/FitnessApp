@@ -1990,7 +1990,7 @@ function processGamification(exerciseName, reps, quality, weight = 0) {
   }
   
   if (leveledUp) {
-    showToast(`🚀 LEVEL UP! You represent Level ${state.gamification.userLevel}`);
+    showToast(`🚀 LEVEL UP! You reached Level ${state.gamification.userLevel}`);
   }
   
   // Persist and update UI
