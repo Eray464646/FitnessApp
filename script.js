@@ -1967,7 +1967,7 @@ function saveSet(auto = false) {
 const MUSCLE_RANKS = [
   { name: "Novice", threshold: 0, color: "#1e293b", icon: "⚪" }, // Default Dark
   { name: "Rookie", threshold: 250, color: "#cd7f32", icon: "🛡️" }, // Bronze
-  { name: "Pro", threshold: 1000, color: "#c0c0c0", icon: "⚔️" }, // Silver
+  { name: "Pro", threshold: 1000, color: "#e2e8f0", icon: "⚔️" }, // Silver
   { name: "Elite", threshold: 2500, color: "#ffd700", icon: "🏆" }, // Gold
   { name: "Titan", threshold: 5000, color: "#00e5ff", icon: "💎" } // Diamond/Neon
 ];
@@ -2063,19 +2063,6 @@ function calculateXP(reps, quality, weight = 0) {
 }
 
 /**
- * Get rank based on XP thresholds
- * @param {number} xp - Current XP
- * @returns {string} Rank name
- */
-function getRankFromXP(xp) {
-  if (xp >= 10000) return "Diamond";
-  if (xp >= 5000) return "Gold";
-  if (xp >= 2000) return "Silver";
-  if (xp >= 500) return "Bronze";
-  return "Unranked";
-}
-
-/**
  * Show a toast notification
  * @param {string} message - Message to display
  */
@@ -2162,8 +2149,8 @@ function processGamification(exerciseName, reps, quality, weight = 0) {
       
       state.gamification.muscleMastery[muscle].rank = newRankObj.name;
       
-      // Show rank up notification
-      if (newRankObj.name !== oldRank && oldRank !== 'Unranked') {
+      // Show rank up notification (skip if upgrading from Novice to avoid spam on first progression)
+      if (newRankObj.name !== oldRank && oldRank !== 'Novice' && oldRank !== 'Unranked') {
         showToast(`${newRankObj.icon} ${muscle.toUpperCase()} erreicht ${newRankObj.name} Rang!`);
       }
     }
