@@ -2039,7 +2039,7 @@ const MUSCLE_RANKS = [
  */
 function getRankForMuscle(xp) {
   // Find the highest tier where currentXP >= threshold
-  let currentRank = MUSCLE_RANKS[0]; // Default to Novice
+  let currentRank = MUSCLE_RANKS[0]; // Default to Anfänger
   
   for (const rank of MUSCLE_RANKS) {
     if (xp >= rank.threshold) {
