@@ -46,6 +46,13 @@
   --glow-exercise: 0 0 20px rgba(146, 232, 42, 0.3);
   --glow-stand: 0 0 20px rgba(0, 217, 255, 0.3);
   
+  /* Gamification Rank Colors */
+  --rank-bronze: #cd7f32;
+  --rank-silver: #e2e8f0;
+  --rank-gold: #fbbf24;
+  --rank-diamond: #06b6d4; /* Cyan neon */
+  --rank-unranked: #1e293b;
+  
   /* Safe Areas */
   --safe-area-bottom: env(safe-area-inset-bottom, 20px);
   --nav-height: 80px;
@@ -1065,6 +1072,151 @@ p {
   line-height: 1;
   margin: 4px 0;
   font-variant-numeric: tabular-nums; /* Fixed-width numbers */
+}
+
+/* ============================================================================ */
+/* GAMIFICATION SYSTEM STYLES */
+/* ============================================================================ */
+
+/* Level Card */
+.level-card {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  border: 0.5px solid var(--border-subtle);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--spacing-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.level-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(146, 232, 42, 0.3), transparent);
+  pointer-events: none;
+}
+
+.level-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-sm);
+}
+
+.level-number {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--color-exercise);
+  letter-spacing: -0.03em;
+  text-shadow: 0 0 20px rgba(146, 232, 42, 0.5);
+}
+
+.level-label {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+}
+
+.level-progress-container {
+  margin-top: var(--spacing-sm);
+}
+
+.level-progress-bar {
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 999px;
+  overflow: hidden;
+  position: relative;
+}
+
+.level-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-exercise), var(--color-stand));
+  border-radius: 999px;
+  transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 0 12px rgba(146, 232, 42, 0.6);
+}
+
+.xp-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-top: var(--spacing-xs);
+  text-align: center;
+  font-weight: 600;
+}
+
+/* Bodygraph Container */
+.bodygraph-container {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-lg);
+  border: 0.5px solid var(--border-subtle);
+  box-shadow: var(--shadow-md);
+  margin-bottom: var(--spacing-md);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.bodygraph-container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: radial-gradient(circle at center, rgba(146, 232, 42, 0.05) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.bodygraph-container svg {
+  position: relative;
+  z-index: 1;
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mastery List */
+.mastery-list-container {
+  background: var(--bg-secondary);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-md);
+  border: 0.5px solid var(--border-subtle);
+  box-shadow: var(--shadow-sm);
+  margin-bottom: var(--spacing-md);
+}
+
+.mastery-list {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--spacing-sm);
+  margin-top: var(--spacing-sm);
+}
+
+.mastery-item {
+  background: rgba(255, 255, 255, 0.02);
+  padding: var(--spacing-xs) var(--spacing-sm);
+  border-radius: var(--radius-sm);
+  border: 0.5px solid var(--border-subtle);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: center;
+}
+
+/* Toast Notification (defined inline in JS but documented here) */
+.toast-notification {
+  /* Styles are applied inline via JavaScript */
+  /* See showToast() function in script.js */
 }
 
 /* Removed - integrated */

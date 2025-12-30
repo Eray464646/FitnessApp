@@ -318,21 +318,70 @@ const defaultPlan = () => ({
   ]
 });
 
+// Default gamification state
+const defaultGamification = () => ({
+  userLevel: 1,
+  currentXP: 0,
+  xpForNextLevel: 500,
+  streakMultiplier: 1.0,
+  muscleMastery: {
+    legs: { xp: 0, level: 1, rank: "Unranked" },
+    chest: { xp: 0, level: 1, rank: "Unranked" },
+    back: { xp: 0, level: 1, rank: "Unranked" },
+    shoulders: { xp: 0, level: 1, rank: "Unranked" },
+    arms: { xp: 0, level: 1, rank: "Unranked" },
+    core: { xp: 0, level: 1, rank: "Unranked" }
+  }
+});
+
 const state = (() => {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return { sets: [], foodEntries: [], plan: defaultPlan(), profile: {}, nutritionGoals: null };
+    if (!raw) {
+      return { 
+        sets: [], 
+        foodEntries: [], 
+        plan: defaultPlan(), 
+        profile: {}, 
+        nutritionGoals: null,
+        gamification: defaultGamification()
+      };
+    }
     const parsed = JSON.parse(raw);
+    
+    // Migration: Add gamification if it doesn't exist
+    if (!parsed.gamification) {
+      parsed.gamification = defaultGamification();
+    }
+    
+    // Ensure all muscle groups exist (in case of partial data)
+    if (parsed.gamification && parsed.gamification.muscleMastery) {
+      const defaultMuscles = defaultGamification().muscleMastery;
+      for (const muscle in defaultMuscles) {
+        if (!parsed.gamification.muscleMastery[muscle]) {
+          parsed.gamification.muscleMastery[muscle] = defaultMuscles[muscle];
+        }
+      }
+    }
+    
     return {
       sets: parsed.sets || [],
       foodEntries: parsed.foodEntries || [],
       plan: parsed.plan || defaultPlan(),
       profile: parsed.profile || {},
-      nutritionGoals: parsed.nutritionGoals || null
+      nutritionGoals: parsed.nutritionGoals || null,
+      gamification: parsed.gamification || defaultGamification()
     };
   } catch (e) {
     console.warn("Fallback to fresh state", e);
-    return { sets: [], foodEntries: [], plan: defaultPlan(), profile: {}, nutritionGoals: null };
+    return { 
+      sets: [], 
+      foodEntries: [], 
+      plan: defaultPlan(), 
+      profile: {}, 
+      nutritionGoals: null,
+      gamification: defaultGamification()
+    };
   }
 })();
 
@@ -1740,6 +1789,9 @@ function saveSet(auto = false) {
   };
   state.sets.push(set);
   
+  // Process gamification (XP, levels, muscle mastery)
+  processGamification(set.exercise, set.reps, set.quality, 0);
+  
   // Reset for next set
   repCount = 0;
   poseState.currentSetFrames = [];
@@ -1754,6 +1806,261 @@ function saveSet(auto = false) {
   // Resume if paused, otherwise continue tracking
   if (poseState.trainingState === TrainingState.PAUSED) {
     resumeTraining();
+  }
+}
+
+// ============================================================================
+// GAMIFICATION SYSTEM
+// ============================================================================
+
+// Exercise to Muscle Group Mapping
+const EXERCISE_MUSCLE_MAP = {
+  // Legs
+  "squat": "legs",
+  "kniebeugen": "legs",
+  "lunge": "legs",
+  "ausfallschritt": "legs",
+  "beinpresse": "legs",
+  "leg press": "legs",
+  
+  // Chest
+  "push-up": "chest",
+  "pushup": "chest",
+  "liegestütze": "chest",
+  "bench": "chest",
+  "bankdrücken": "chest",
+  "press": "chest",
+  
+  // Back
+  "pull-up": "back",
+  "pullup": "back",
+  "klimmzug": "back",
+  "row": "back",
+  "rudern": "back",
+  "kreuzheben": "back",
+  "deadlift": "back",
+  
+  // Core
+  "plank": "core",
+  "crunches": "core",
+  "sit-up": "core",
+  "situp": "core",
+  "abs": "core",
+  
+  // Arms
+  "curl": "arms",
+  "dip": "arms",
+  "triceps": "arms",
+  
+  // Shoulders
+  "shoulder press": "shoulders",
+  "drücken": "shoulders"
+};
+
+/**
+ * Calculate XP earned from an exercise set
+ * @param {number} reps - Number of repetitions
+ * @param {number} quality - Quality score (0-100)
+ * @param {number} weight - Weight used (optional, default 0)
+ * @returns {number} XP earned (rounded integer)
+ */
+function calculateXP(reps, quality, weight = 0) {
+  // Base XP = reps * 5
+  let xp = reps * 5;
+  
+  // Quality Bonus
+  if (quality > 90) {
+    xp *= 1.5;
+  } else if (quality > 80) {
+    xp *= 1.2;
+  }
+  
+  // Weight Bonus
+  if (weight > 0) {
+    xp += weight * 0.5;
+  }
+  
+  return Math.round(xp);
+}
+
+/**
+ * Get rank based on XP thresholds
+ * @param {number} xp - Current XP
+ * @returns {string} Rank name
+ */
+function getRankFromXP(xp) {
+  if (xp >= 10000) return "Diamond";
+  if (xp >= 5000) return "Gold";
+  if (xp >= 2000) return "Silver";
+  if (xp >= 500) return "Bronze";
+  return "Unranked";
+}
+
+/**
+ * Show a toast notification
+ * @param {string} message - Message to display
+ */
+function showToast(message) {
+  // Create toast element
+  const toast = document.createElement('div');
+  toast.className = 'toast-notification';
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    top: 80px;
+    left: 50%;
+    transform: translateX(-50%) translateY(-20px);
+    background: linear-gradient(135deg, #92e82a, #00d9ff);
+    color: #000;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-weight: 700;
+    font-size: 15px;
+    box-shadow: 0 8px 24px rgba(146, 232, 42, 0.4);
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  `;
+  
+  document.body.appendChild(toast);
+  
+  // Animate in
+  setTimeout(() => {
+    toast.style.opacity = '1';
+    toast.style.transform = 'translateX(-50%) translateY(0)';
+  }, 10);
+  
+  // Animate out and remove
+  setTimeout(() => {
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateX(-50%) translateY(-20px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+/**
+ * Process gamification logic after saving a set
+ * @param {string} exerciseName - Name of the exercise
+ * @param {number} reps - Number of repetitions
+ * @param {number} quality - Quality score (0-100)
+ * @param {number} weight - Weight used (optional, default 0)
+ */
+function processGamification(exerciseName, reps, quality, weight = 0) {
+  // Calculate XP gained
+  const xpGained = calculateXP(reps, quality, weight);
+  
+  // Add to global XP
+  state.gamification.currentXP += xpGained;
+  
+  // Identify target muscle group
+  const exerciseLower = exerciseName.toLowerCase();
+  let targetMuscle = null;
+  
+  for (const [key, muscle] of Object.entries(EXERCISE_MUSCLE_MAP)) {
+    if (exerciseLower.includes(key)) {
+      targetMuscle = muscle;
+      break;
+    }
+  }
+  
+  // Add XP to muscle group if identified
+  if (targetMuscle && state.gamification.muscleMastery[targetMuscle]) {
+    state.gamification.muscleMastery[targetMuscle].xp += xpGained;
+    
+    // Update muscle rank
+    const muscleXP = state.gamification.muscleMastery[targetMuscle].xp;
+    const newRank = getRankFromXP(muscleXP);
+    const oldRank = state.gamification.muscleMastery[targetMuscle].rank;
+    
+    state.gamification.muscleMastery[targetMuscle].rank = newRank;
+    
+    // Show rank up notification
+    if (newRank !== oldRank) {
+      showToast(`🎯 ${targetMuscle.toUpperCase()} erreicht ${newRank} Rang!`);
+    }
+  }
+  
+  // Level Up Logic
+  let leveledUp = false;
+  while (state.gamification.currentXP >= state.gamification.xpForNextLevel) {
+    state.gamification.userLevel++;
+    state.gamification.currentXP -= state.gamification.xpForNextLevel;
+    state.gamification.xpForNextLevel = Math.floor(state.gamification.xpForNextLevel * 1.2);
+    leveledUp = true;
+  }
+  
+  if (leveledUp) {
+    showToast(`🚀 LEVEL UP! You represent Level ${state.gamification.userLevel}`);
+  }
+  
+  // Persist and update UI
+  persist();
+  updateGamificationUI();
+}
+
+/**
+ * Update all gamification UI elements
+ */
+function updateGamificationUI() {
+  // Update level progress bar
+  const progressBar = document.getElementById('level-progress-fill');
+  if (progressBar) {
+    const progress = (state.gamification.currentXP / state.gamification.xpForNextLevel) * 100;
+    progressBar.style.width = `${Math.min(100, progress)}%`;
+  }
+  
+  // Update level number
+  const levelNumber = document.getElementById('user-level-number');
+  if (levelNumber) {
+    levelNumber.textContent = state.gamification.userLevel;
+  }
+  
+  // Update XP text
+  const xpText = document.getElementById('xp-text');
+  if (xpText) {
+    xpText.textContent = `${state.gamification.currentXP} / ${state.gamification.xpForNextLevel} XP`;
+  }
+  
+  // Update bodygraph muscle colors
+  for (const [muscle, data] of Object.entries(state.gamification.muscleMastery)) {
+    const pathElement = document.getElementById(`poly-${muscle}`);
+    if (pathElement) {
+      const rank = data.rank;
+      let fillColor = 'var(--rank-unranked)';
+      let glowEffect = 'none';
+      
+      switch (rank) {
+        case 'Bronze':
+          fillColor = 'var(--rank-bronze)';
+          break;
+        case 'Silver':
+          fillColor = 'var(--rank-silver)';
+          break;
+        case 'Gold':
+          fillColor = 'var(--rank-gold)';
+          glowEffect = '0 0 12px rgba(251, 191, 36, 0.6)';
+          break;
+        case 'Diamond':
+          fillColor = 'var(--rank-diamond)';
+          glowEffect = '0 0 16px rgba(6, 182, 212, 0.8)';
+          break;
+      }
+      
+      pathElement.style.fill = fillColor;
+      pathElement.style.filter = glowEffect !== 'none' ? `drop-shadow(${glowEffect})` : 'none';
+    }
+  }
+  
+  // Update mastery list
+  const masteryList = document.getElementById('mastery-list');
+  if (masteryList) {
+    const entries = Object.entries(state.gamification.muscleMastery)
+      .map(([muscle, data]) => {
+        const muscleLabel = muscle.charAt(0).toUpperCase() + muscle.slice(1);
+        return `<span class="mastery-item">${muscleLabel}: ${data.rank}</span>`;
+      })
+      .join('');
+    masteryList.innerHTML = entries;
   }
 }
 
@@ -2553,6 +2860,7 @@ renderFoodLog();
 renderDashboard();
 updateReplayLog();
 updateNutritionProgress();
+updateGamificationUI();
 
 // Check backend health on page load
 checkBackendHealth();
