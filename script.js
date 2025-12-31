@@ -3561,14 +3561,8 @@ updateNutritionProgress();
 updateGamificationUI();
 restoreCalorieCalculatorInputs();
 
-// Apply saved theme on page load
-if (state.profile.theme) {
-  applyTheme(state.profile.theme);
-} else {
-  // Ensure default theme if none is set
-  state.profile.theme = 'standard';
-  persist();
-}
+// Apply saved theme on page load (migration ensures it exists)
+applyTheme(state.profile.theme);
 
 // Check and archive weeks on page load
 checkAndArchiveWeeks();
