@@ -362,7 +362,7 @@ const state = (() => {
         foodEntries: [], 
         weeklySummaries: [],
         plan: defaultPlan(), 
-        profile: {}, 
+        profile: { theme: 'standard' }, 
         nutritionGoals: null,
         gamification: defaultGamification()
       };
@@ -377,6 +377,14 @@ const state = (() => {
     // Migration: Add weeklySummaries if it doesn't exist
     if (!parsed.weeklySummaries) {
       parsed.weeklySummaries = [];
+    }
+    
+    // Migration: Add theme to profile if it doesn't exist
+    if (!parsed.profile) {
+      parsed.profile = {};
+    }
+    if (!parsed.profile.theme) {
+      parsed.profile.theme = 'standard'; // Default FitSense theme
     }
     
     // Ensure all muscle groups exist (in case of partial data)
@@ -418,7 +426,7 @@ const state = (() => {
       foodEntries: [], 
       weeklySummaries: [],
       plan: defaultPlan(), 
-      profile: {}, 
+      profile: { theme: 'standard' }, 
       nutritionGoals: null,
       gamification: defaultGamification()
     };
@@ -489,6 +497,42 @@ const quickNavButtons = document.querySelectorAll("[data-nav-target]");
 
 function persist() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+/**
+ * Apply theme by adding/removing theme classes from document.body
+ * @param {string} themeName - Theme name: 'standard', 'athena', 'spartan', or 'coach'
+ */
+function applyTheme(themeName) {
+  // Remove all theme classes
+  document.body.classList.remove('theme-athena', 'theme-spartan', 'theme-coach');
+  
+  // Add theme class if not standard
+  if (themeName !== 'standard') {
+    document.body.classList.add(`theme-${themeName}`);
+  }
+  
+  // Save theme to profile
+  state.profile.theme = themeName;
+  persist();
+  
+  // Update active state in UI
+  updateThemeUI();
+}
+
+/**
+ * Update theme card active states
+ */
+function updateThemeUI() {
+  const themeCards = document.querySelectorAll('.theme-card');
+  themeCards.forEach(card => {
+    const cardTheme = card.dataset.theme;
+    if (cardTheme === state.profile.theme) {
+      card.classList.add('active');
+    } else {
+      card.classList.remove('active');
+    }
+  });
 }
 
 function switchView(targetId) {
@@ -3517,6 +3561,9 @@ updateNutritionProgress();
 updateGamificationUI();
 restoreCalorieCalculatorInputs();
 
+// Apply saved theme on page load (migration ensures it exists)
+applyTheme(state.profile.theme);
+
 // Check and archive weeks on page load
 checkAndArchiveWeeks();
 
@@ -3532,3 +3579,4 @@ window.addEventListener("beforeunload", () => {
 window.replaySet = replaySet;
 window.deleteSet = deleteSet;
 window.deleteFood = deleteFood;
+window.applyTheme = applyTheme;
