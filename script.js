@@ -3580,3 +3580,33 @@ window.replaySet = replaySet;
 window.deleteSet = deleteSet;
 window.deleteFood = deleteFood;
 window.applyTheme = applyTheme;
+
+// ============================================================================
+// Subscription Overlay Banner
+// ============================================================================
+// Show the subscription overlay banner on page load
+// The banner is purely visual and does not affect functionality
+// It reappears every time the page is loaded/refreshed (no localStorage)
+
+function showSubscriptionBanner() {
+  const overlay = document.getElementById('subscription-overlay');
+  if (overlay) {
+    overlay.classList.remove('hidden');
+  }
+}
+
+function hideSubscriptionBanner() {
+  const overlay = document.getElementById('subscription-overlay');
+  if (overlay) {
+    overlay.classList.add('hidden');
+  }
+}
+
+// Initialize subscription banner
+const closeSubscriptionBtn = document.getElementById('close-subscription-banner');
+if (closeSubscriptionBtn) {
+  closeSubscriptionBtn.addEventListener('click', hideSubscriptionBanner);
+}
+
+// Show banner on page load
+showSubscriptionBanner();
