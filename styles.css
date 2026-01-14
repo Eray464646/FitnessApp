@@ -1057,9 +1057,9 @@ input::placeholder {
 /* Disabled navigation button (Enterprise placeholder) */
 .nav-btn-disabled {
   opacity: 0.5;
-  cursor: not-allowed !important;
+  cursor: not-allowed;
   pointer-events: none;
-  color: var(--text-tertiary) !important;
+  color: var(--text-tertiary);
 }
 
 .nav-btn-disabled::before {
