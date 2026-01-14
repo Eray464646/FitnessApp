@@ -1054,6 +1054,18 @@ input::placeholder {
   opacity: 1;
 }
 
+/* Disabled navigation button (Enterprise placeholder) */
+.nav-btn-disabled {
+  opacity: 0.5;
+  cursor: not-allowed !important;
+  pointer-events: none;
+  color: var(--text-tertiary) !important;
+}
+
+.nav-btn-disabled::before {
+  opacity: 0.3;
+}
+
 /* Mobile optimization */
 @media (max-width: 400px) {
   .bottom-nav {
