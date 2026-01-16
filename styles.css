@@ -183,6 +183,13 @@ main {
   letter-spacing: -0.02em; /* Apple tight tracking */
 }
 
+.brand .brand-logo {
+  width: 24px;
+  height: 24px;
+  color: var(--primary-color);
+  filter: drop-shadow(0 0 8px var(--primary-glow));
+}
+
 .brand .dot {
   width: 8px;
   height: 8px;
