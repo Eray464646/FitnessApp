@@ -2,7 +2,7 @@
 
 ## Projektübersicht
 
-Die FitnessApp (auch "FitSense AI" genannt) ist eine moderne, mobile-first Fitness- und Ernährungsplattform, die künstliche Intelligenz und fortschrittliche Computervision-Technologie nutzt, um ein vollständig automatisiertes Tracking-Erlebnis zu bieten. Die Anwendung läuft komplett im Browser (Progressive Web App) und benötigt keine nativen App-Installationen.
+Die FitnessApp (auch "MX" genannt) ist eine moderne, mobile-first Fitness- und Ernährungsplattform, die künstliche Intelligenz und fortschrittliche Computervision-Technologie nutzt, um ein vollständig automatisiertes Tracking-Erlebnis zu bieten. Die Anwendung läuft komplett im Browser (Progressive Web App) und benötigt keine nativen App-Installationen.
 
 ## Kernkonzept
 
@@ -309,7 +309,7 @@ WAITING → READY → ACTIVE ↔ PAUSED → STOPPED
 
 ### localStorage-basiertes State-Schema
 
-**Storage-Key:** `"fitnessAppState"`
+**Storage-Key:** `"mxAppState"`
 
 **State-Struktur:**
 ```javascript

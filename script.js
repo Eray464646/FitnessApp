@@ -1,4 +1,4 @@
-const STORAGE_KEY = "fitnessAppState";
+const STORAGE_KEY = "mxAppState";
 
 // ============================================================================
 // Vercel Backend Configuration
@@ -384,7 +384,7 @@ const state = (() => {
       parsed.profile = {};
     }
     if (!parsed.profile.theme) {
-      parsed.profile.theme = 'standard'; // Default FitSense theme
+      parsed.profile.theme = 'standard'; // Default MX theme
     }
     
     // Ensure all muscle groups exist (in case of partial data)
@@ -3368,10 +3368,10 @@ function exportData() {
     // Create blob with MIME type application/json
     const blob = new Blob([jsonString], { type: 'application/json' });
     
-    // Generate filename with current date: fitsense_backup_YYYY-MM-DD.json
+    // Generate filename with current date: mx_backup_YYYY-MM-DD.json
     const date = new Date();
     const dateStr = date.toISOString().split('T')[0]; // YYYY-MM-DD
-    const filename = `fitsense_backup_${dateStr}.json`;
+    const filename = `mx_backup_${dateStr}.json`;
     
     // Create download link and trigger download
     const url = URL.createObjectURL(blob);

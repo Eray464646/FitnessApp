@@ -1,6 +1,6 @@
-# Deployment Guide for FitSense AI
+# Deployment Guide for MX
 
-This guide explains how to deploy FitSense AI with proper security for the Gemini API integration.
+This guide explains how to deploy MX with proper security for the Gemini API integration.
 
 ## Prerequisites
 

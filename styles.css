@@ -3,10 +3,10 @@
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Segoe UI", sans-serif;
   
   /* ============================================================================ */
-  /* THEME SYSTEM - Standard (FitSense) Theme */
+  /* THEME SYSTEM - Standard (MX) Theme */
   /* ============================================================================ */
-  /* Primary Theme Colors - Default: Neon Lime/Dark (FitSense Brand) */
-  --primary-color: #bef264; /* Lime Green - FitSense brand color */
+  /* Primary Theme Colors - Default: Neon Lime/Dark (MX Brand) */
+  --primary-color: #bef264; /* Lime Green - MX brand color */
   --primary-glow: rgba(190, 242, 100, 0.5);
   --bg-color: #000000; /* Pure black background */
   --card-bg: #1e293b; /* Dark slate card background */
@@ -181,6 +181,13 @@ main {
   gap: var(--spacing-xs);
   color: var(--text-primary);
   letter-spacing: -0.02em; /* Apple tight tracking */
+}
+
+.brand .brand-logo {
+  width: 24px;
+  height: 24px;
+  color: var(--primary-color);
+  filter: drop-shadow(0 0 8px var(--primary-glow));
 }
 
 .brand .dot {
