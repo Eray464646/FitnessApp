@@ -1,6 +1,6 @@
 # GitHub Pages + Vercel Proxy Deployment Guide
 
-This guide explains how to deploy FitSense AI on **GitHub Pages** (for the frontend) with a **Vercel proxy** (for Gemini API calls) to solve CORS issues.
+This guide explains how to deploy MX on **GitHub Pages** (for the frontend) with a **Vercel proxy** (for Gemini API calls) to solve CORS issues.
 
 ## Architecture
 

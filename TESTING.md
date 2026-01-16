@@ -1,6 +1,6 @@
-# Testing Guide for FitSense AI
+# Testing Guide for MX
 
-This guide provides step-by-step instructions for testing all features of the FitSense AI application.
+This guide provides step-by-step instructions for testing all features of the MX application.
 
 ## Prerequisites
 

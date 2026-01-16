@@ -2,7 +2,7 @@
 
 ## Overview
 
-This implementation adds client-side API key management to the FitSense AI app, allowing users to provide their own Gemini API keys for the Food Scanner feature. The keys are stored ONLY in memory and NEVER persisted, ensuring maximum security and privacy.
+This implementation adds client-side API key management to the MX app, allowing users to provide their own Gemini API keys for the Food Scanner feature. The keys are stored ONLY in memory and NEVER persisted, ensuring maximum security and privacy.
 
 ## Files Changed
 
