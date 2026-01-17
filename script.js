@@ -362,7 +362,7 @@ const state = (() => {
         foodEntries: [], 
         weeklySummaries: [],
         plan: defaultPlan(), 
-        profile: { theme: 'standard' }, 
+        profile: { theme: 'standard', wearable: false, eyetracker: false }, 
         nutritionGoals: null,
         gamification: defaultGamification()
       };
@@ -385,6 +385,14 @@ const state = (() => {
     }
     if (!parsed.profile.theme) {
       parsed.profile.theme = 'standard'; // Default MX theme
+    }
+    
+    // Migration: Add wearable and eyetracker defaults if they don't exist
+    if (parsed.profile.wearable === undefined) {
+      parsed.profile.wearable = false;
+    }
+    if (parsed.profile.eyetracker === undefined) {
+      parsed.profile.eyetracker = false;
     }
     
     // Ensure all muscle groups exist (in case of partial data)
@@ -426,7 +434,7 @@ const state = (() => {
       foodEntries: [], 
       weeklySummaries: [],
       plan: defaultPlan(), 
-      profile: { theme: 'standard' }, 
+      profile: { theme: 'standard', wearable: false, eyetracker: false }, 
       nutritionGoals: null,
       gamification: defaultGamification()
     };
