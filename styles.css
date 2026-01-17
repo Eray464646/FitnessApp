@@ -832,6 +832,27 @@ select {
   background-position: right 16px center;
 }
 
+/* Dropdown option styling - Fix for white-on-white issue on desktop */
+select option {
+  background: var(--form-input-bg); /* Dark background matching the app theme */
+  color: var(--text-primary); /* White text */
+  padding: 12px 16px;
+  font-size: 17px;
+}
+
+/* Hover and focus states for dropdown options */
+select option:hover,
+select option:focus {
+  background: var(--bg-tertiary); /* Slightly lighter background for hover/focus */
+  color: var(--text-primary);
+}
+
+/* Active/checked option state */
+select option:checked {
+  background: var(--bg-tertiary);
+  font-weight: 600;
+}
+
 input:focus,
 select:focus {
   outline: none;
