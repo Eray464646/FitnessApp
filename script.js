@@ -362,7 +362,7 @@ const state = (() => {
         foodEntries: [], 
         weeklySummaries: [],
         plan: defaultPlan(), 
-        profile: { theme: 'standard' }, 
+        profile: { theme: 'standard', wearable: false, eyetracker: false }, 
         nutritionGoals: null,
         gamification: defaultGamification()
       };
@@ -385,6 +385,14 @@ const state = (() => {
     }
     if (!parsed.profile.theme) {
       parsed.profile.theme = 'standard'; // Default MX theme
+    }
+    
+    // Migration: Add wearable and eyetracker defaults if they don't exist
+    if (parsed.profile.wearable === undefined) {
+      parsed.profile.wearable = false;
+    }
+    if (parsed.profile.eyetracker === undefined) {
+      parsed.profile.eyetracker = false;
     }
     
     // Ensure all muscle groups exist (in case of partial data)
@@ -426,7 +434,7 @@ const state = (() => {
       foodEntries: [], 
       weeklySummaries: [],
       plan: defaultPlan(), 
-      profile: { theme: 'standard' }, 
+      profile: { theme: 'standard', wearable: false, eyetracker: false }, 
       nutritionGoals: null,
       gamification: defaultGamification()
     };
@@ -3237,6 +3245,8 @@ function hydrateProfile() {
   document.getElementById("camera-consent").checked = !!state.profile.cameraConsent;
   document.getElementById("notification-toggle").checked = state.profile.notifications ?? true;
   document.getElementById("wearable-toggle").checked = !!state.profile.wearable;
+  document.getElementById("eyetracker-toggle").checked = !!state.profile.eyetracker;
+  updateWorkforceAnalyticsButton();
 }
 
 /**
@@ -3480,6 +3490,22 @@ function triggerImportBackup() {
 }
 
 // API Status checking functions
+function updateWorkforceAnalyticsButton() {
+  const workforceBtn = document.getElementById("workforce-analytics-btn");
+  if (!workforceBtn) return;
+  
+  const smartwatchEnabled = !!state.profile.wearable;
+  const eyetrackerEnabled = !!state.profile.eyetracker;
+  
+  if (smartwatchEnabled && eyetrackerEnabled) {
+    workforceBtn.disabled = false;
+    workforceBtn.title = "Enterprise Feature – Workforce Analytics aktiviert";
+  } else {
+    workforceBtn.disabled = true;
+    workforceBtn.title = "Enterprise Feature – Aktiviere Smartwatch und Eye Tracker";
+  }
+}
+
 function bindProfile() {
   document.getElementById("camera-consent").addEventListener("change", (e) => {
     state.profile.cameraConsent = e.target.checked;
@@ -3492,6 +3518,12 @@ function bindProfile() {
   document.getElementById("wearable-toggle").addEventListener("change", (e) => {
     state.profile.wearable = e.target.checked;
     persist();
+    updateWorkforceAnalyticsButton();
+  });
+  document.getElementById("eyetracker-toggle").addEventListener("change", (e) => {
+    state.profile.eyetracker = e.target.checked;
+    persist();
+    updateWorkforceAnalyticsButton();
   });
   
   // Add reset progress button listener
