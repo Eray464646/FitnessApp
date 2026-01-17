@@ -833,6 +833,9 @@ select {
 }
 
 /* Dropdown option styling - Fix for white-on-white issue on desktop */
+/* Note: Browser support for option styling varies. Background and color work in most modern browsers,
+   but padding, hover, and focus states may not be fully supported in all browsers (especially WebKit).
+   This provides a baseline fix for the readability issue on desktop browsers. */
 select option {
   background: var(--form-input-bg); /* Dark background matching the app theme */
   color: var(--text-primary); /* White text */
@@ -840,7 +843,7 @@ select option {
   font-size: 17px;
 }
 
-/* Hover and focus states for dropdown options */
+/* Hover and focus states for dropdown options (limited browser support) */
 select option:hover,
 select option:focus {
   background: var(--bg-tertiary); /* Slightly lighter background for hover/focus */
