@@ -549,6 +549,11 @@ function switchView(targetId) {
   navButtons.forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.target === targetId);
   });
+  
+  // Update eye tracker banner when switching to workforce view
+  if (targetId === "workforce") {
+    updateEyeTrackerBanner();
+  }
 }
 
 navButtons.forEach((btn) =>
@@ -3497,12 +3502,29 @@ function updateWorkforceAnalyticsButton() {
   const smartwatchEnabled = !!state.profile.wearable;
   const eyetrackerEnabled = !!state.profile.eyetracker;
   
+  // Always enable the button - let users access the view
+  workforceBtn.disabled = false;
+  
+  // Update title based on connection status
   if (smartwatchEnabled && eyetrackerEnabled) {
-    workforceBtn.disabled = false;
-    workforceBtn.title = "Enterprise Feature – Workforce Analytics aktiviert";
+    workforceBtn.title = "Enterprise Feature – Arbeitsplatz aktiviert";
   } else {
-    workforceBtn.disabled = true;
-    workforceBtn.title = "Enterprise Feature – Aktiviere Smartwatch und Eye Tracker";
+    workforceBtn.title = "Enterprise Feature – Verbinde Eye Tracker für volle Funktionalität";
+  }
+}
+
+// Show/hide eye tracker warning banner on Arbeitsplatz view
+function updateEyeTrackerBanner() {
+  const banner = document.getElementById("eyetracker-warning-banner");
+  if (!banner) return;
+  
+  const eyetrackerEnabled = !!state.profile.eyetracker;
+  
+  // Only show banner if eye tracker is NOT connected
+  if (!eyetrackerEnabled) {
+    banner.style.display = "block";
+  } else {
+    banner.style.display = "none";
   }
 }
 
@@ -3524,6 +3546,7 @@ function bindProfile() {
     state.profile.eyetracker = e.target.checked;
     persist();
     updateWorkforceAnalyticsButton();
+    updateEyeTrackerBanner(); // Update banner when eye tracker is toggled
   });
   
   // Add reset progress button listener
@@ -3580,6 +3603,11 @@ document.getElementById("camera-facing").addEventListener("change", async (e) =>
   }
 });
 document.getElementById("play-replay").addEventListener("click", playReplay);
+
+// Add event listener for "Zu den Einstellungen" button in eye tracker banner
+document.getElementById("goto-settings-btn").addEventListener("click", () => {
+  switchView("profile");
+});
 
 hydrateProfile();
 bindProfile();

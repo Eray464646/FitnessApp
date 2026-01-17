@@ -403,6 +403,40 @@
           </div>
         </section>
 
+        <section id="workforce" class="view">
+          <header class="section-header">
+            <div>
+              <p class="eyebrow">Enterprise Feature</p>
+              <h2>Arbeitsplatz</h2>
+              <p class="muted">
+                Analysiere deine Arbeitsplatz-Ergonomie mit Eye Tracker und Smartwatch.
+              </p>
+            </div>
+          </header>
+
+          <!-- Eye Tracker Warning Banner -->
+          <div id="eyetracker-warning-banner" class="warning-banner" style="display: none;">
+            <div class="warning-content">
+              <div class="warning-icon">⚠️</div>
+              <div class="warning-text">
+                <strong>Eye Tracker nicht verbunden</strong>
+                <p>Um den Arbeitsplatz nutzen zu können, verbinden Sie bitte einen Eye Tracker in den Einstellungen.</p>
+              </div>
+              <button class="btn secondary" id="goto-settings-btn">Zu den Einstellungen</button>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="block-header">
+              <h3>Arbeitsplatz-Analyse</h3>
+              <span class="muted">Ergonomie & Produktivität</span>
+            </div>
+            <p class="muted">
+              Diese Funktion erfordert eine Smartwatch und einen Eye Tracker für eine vollständige Analyse.
+            </p>
+          </div>
+        </section>
+
         <section id="profile" class="view">
           <header class="section-header">
             <div>
@@ -508,10 +542,10 @@
       <nav class="bottom-nav">
         <button class="nav-btn active" data-target="dashboard">Dashboard</button>
         <button class="nav-btn" data-target="training">Training</button>
+        <button class="nav-btn" id="workforce-analytics-btn" data-target="workforce" title="Enterprise Feature – Verbinde Eye Tracker für volle Funktionalität">Arbeitsplatz</button>
         <button class="nav-btn" data-target="nutrition">Ernährung</button>
         <button class="nav-btn" data-target="plan">Plan</button>
         <button class="nav-btn" data-target="profile">Profil</button>
-        <button class="nav-btn" id="workforce-analytics-btn" disabled title="Enterprise Feature – Aktiviere Smartwatch und Eye Tracker">Workforce Analytics</button>
       </nav>
     </div>
 
