@@ -3502,12 +3502,14 @@ function updateWorkforceAnalyticsButton() {
   const smartwatchEnabled = !!state.profile.wearable;
   const eyetrackerEnabled = !!state.profile.eyetracker;
   
+  // Always enable the button - let users access the view
+  workforceBtn.disabled = false;
+  
+  // Update title based on connection status
   if (smartwatchEnabled && eyetrackerEnabled) {
-    workforceBtn.disabled = false;
     workforceBtn.title = "Enterprise Feature – Arbeitsplatz aktiviert";
   } else {
-    workforceBtn.disabled = true;
-    workforceBtn.title = "Enterprise Feature – Aktiviere Smartwatch und Eye Tracker";
+    workforceBtn.title = "Enterprise Feature – Verbinde Eye Tracker für volle Funktionalität";
   }
 }
 
