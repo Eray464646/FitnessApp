@@ -3484,6 +3484,8 @@ function triggerImportBackup() {
 // API Status checking functions
 function updateWorkforceAnalyticsButton() {
   const workforceBtn = document.getElementById("workforce-analytics-btn");
+  if (!workforceBtn) return;
+  
   const smartwatchEnabled = !!state.profile.wearable;
   const eyetrackerEnabled = !!state.profile.eyetracker;
   
