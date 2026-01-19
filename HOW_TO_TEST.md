@@ -81,11 +81,11 @@ python -m http.server 8000
 3. ✅ **Expected:** Alert "Bitte zuerst einen API Key eingeben!"
 4. ✅ **Expected:** Error message shown in food details area
 
-### Test 8: Portion Slider
+### Test 8: AI Portion Estimation
 1. Detect a food item successfully
-2. Adjust portion slider (0.5x to 2x)
-3. ✅ **Expected:** Calories and macros scale proportionally
-4. Example: 100 kcal → 50 kcal at 0.5x, 200 kcal at 2x
+2. Review AI-estimated portion and macros
+3. ✅ **Expected:** Macros based on AI-estimated portion (no manual slider)
+4. ✅ **Expected:** Portion size automatically determined from visual cues in image
 
 ## Production Testing (GitHub Pages + Vercel)
 
@@ -168,7 +168,7 @@ Use this checklist to verify all requirements are met:
 ### UI/UX
 - [ ] ✅ Status indicator updates correctly
 - [ ] ✅ Last test timestamp shown
-- [ ] ✅ Portion slider works
+- [ ] ✅ AI automatically estimates portions from food images
 - [ ] ✅ Food log saves items
 - [ ] ✅ Error messages in German, clear and helpful
 

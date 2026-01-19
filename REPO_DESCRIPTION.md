@@ -198,7 +198,7 @@ WAITING → READY → ACTIVE ↔ PAUSED → STOPPED
 4. **Makronährstoff-Schätzung:**
    - Kalorien, Protein, Kohlenhydrate, Fett
    - Summierung bei Multi-Item-Meals
-   - Portion-Slider (0.5x - 2.0x) für Mengenanpassung
+   - **Vollautomatische Portionsschätzung durch KI** (0.5x - 2.0x basierend auf visueller Analyse)
 
 **Fehlerbehandlung:**
 - Detaillierte Error-Messages (CORS, Auth 401/403, Quota 429, Format 400, Server 500)
@@ -450,7 +450,6 @@ function persist() {
 
 **Interaktive Elemente:**
 - Replay-Scrubber: Touch-Events für Frame-Seeking
-- Portion-Slider: Range-Input mit Touch-Support
 - Camera-Switch: Dropdown während READY/PAUSED
 
 ### Responsive Layout
@@ -879,7 +878,6 @@ FitnessApp/
 
 ### UI-Rendering-Optimierungen
 
-- Debounced Portion-Slider
 - Lazy-Loading von Skeleton-Frames
 - Canvas-Clearing nur wenn nötig
 - CSS-Transforms für Swipe-Animationen (GPU-beschleunigt)
