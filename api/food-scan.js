@@ -157,12 +157,21 @@ module.exports = async (req, res) => {
     // Use provided prompt or default
     const defaultPrompt = `Analysiere dieses Bild und identifiziere ALLE Lebensmittel und Getränke.
 
-WICHTIG: 
+WICHTIG - PORTIONSSCHÄTZUNG: 
+- Schätze die Portionsgröße AUTOMATISCH anhand visueller Hinweise:
+  * Tellergröße (Standard: 26-28cm Durchmesser)
+  * Vergleich mit Standardobjekten (Besteck, Hände, etc.)
+  * Füllmenge auf dem Teller/in der Schüssel
+  * Volumen bei Getränken (Glas-/Bechergröße)
+- Gib REALISTISCHE Portionsgrößen an (z.B. 150g Reis, 200g Hähnchen, 300ml Getränk)
+- Bei Unsicherheit: Wähle typische Restaurant-/Heimportionen
+
+LEBENSMITTELERKENNUNG:
 - Erkenne Lebensmittel aus ALLEN Kategorien: Obst, Gemüse, Fleisch, Fisch, Reis, Pasta, Brot, Milchprodukte, Snacks, Desserts, Getränke
-- Bei mehreren Lebensmitteln auf einem Teller/Foto: Liste ALLE auf
-- Bei gemischten Gerichten (z.B. Bowl, Teller, Salat, Sandwich, Pasta-Gericht): Erkenne die Hauptkomponenten
-- Wenn ein Lebensmittel offensichtlich zu sehen ist, setze detected=true, auch bei niedriger Confidence
-- Nur wenn definitiv KEIN Essen im Bild ist, setze detected=false
+- Bei mehreren Lebensmitteln: Liste ALLE auf
+- Bei gemischten Gerichten: Erkenne die Hauptkomponenten
+- Wenn Essen sichtbar ist, setze detected=true (auch bei niedriger Confidence)
+- Nur wenn definitiv KEIN Essen im Bild: setze detected=false
 
 Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in folgendem Format (kein Markdown, kein Text drumherum):
 
@@ -172,21 +181,21 @@ Antworte AUSSCHLIESSLICH mit einem JSON-Objekt in folgendem Format (kein Markdow
     {
       "label": "Lebensmittel 1",
       "confidence": 85,
-      "portion": {"unit": "g", "value": 120},
+      "portion": {"unit": "g", "value": 150},
       "macros": {"protein": 1.3, "fat": 0.4, "carbs": 27.0},
       "calories": 105
     }
   ],
   "totals": {"calories": 105, "protein": 1.3, "fat": 0.4, "carbs": 27.0},
-  "notes": "Kurze Erklärung"
+  "notes": "Portionsschätzung basiert auf Tellergröße/visueller Analyse"
 }
 
 Confidence-Logik:
-- Wenn eindeutig Essen sichtbar: confidence 70-100, detected=true
-- Wenn unsicher aber wahrscheinlich Essen: confidence 40-69, detected=true, notes="Unsicher – bitte bestätigen"
-- Wenn definitiv kein Essen: detected=false
+- Eindeutig Essen sichtbar: confidence 70-100, detected=true
+- Unsicher aber wahrscheinlich Essen: confidence 40-69, detected=true, notes="Unsicher – bitte bestätigen"
+- Definitiv kein Essen: detected=false
 
-Schätze realistische Nährwerte für typische Portionen.`;
+Berechne Nährwerte basierend auf der geschätzten Portionsgröße.`;
 
     const finalPrompt = prompt || defaultPrompt;
 

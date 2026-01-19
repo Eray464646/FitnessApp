@@ -2571,12 +2571,13 @@ function renderFoodDetection() {
     document.getElementById("food-details").innerHTML = "<p class='muted'>Warte auf Scan...</p>";
     return;
   }
-  const portion = Number(document.getElementById("portion-slider").value);
+  
+  // Use AI-estimated values directly without manual portion adjustment
   const scaled = {
-    calories: Math.round(lastFoodDetection.calories * portion),
-    protein: Math.round(lastFoodDetection.protein * portion),
-    carbs: Math.round(lastFoodDetection.carbs * portion),
-    fat: Math.round(lastFoodDetection.fat * portion)
+    calories: lastFoodDetection.calories,
+    protein: lastFoodDetection.protein,
+    carbs: lastFoodDetection.carbs,
+    fat: lastFoodDetection.fat
   };
   
   // Build detailed info including AI confidence and detected items
@@ -3563,7 +3564,6 @@ document.getElementById("pause-training").addEventListener("click", pauseTrainin
 document.getElementById("save-set").addEventListener("click", () => saveSet(false));
 document.getElementById("stop-training").addEventListener("click", stopTraining);
 document.getElementById("food-input").addEventListener("change", handleFoodInput);
-document.getElementById("portion-slider").addEventListener("input", renderFoodDetection);
 document.getElementById("save-food").addEventListener("click", saveFoodEntry);
 document.getElementById("plan-form").addEventListener("submit", generatePlan);
 document.getElementById("calorie-calculator-form").addEventListener("submit", handleCalorieCalculator);
