@@ -31,11 +31,15 @@ Before testing:
 - Upload blurry food image → Should show low confidence message
 - Server not configured → Should show "Server configuration error"
 
-### Test 2: Portion Adjustment
+### Test 2: AI Portion Estimation
 **Steps:**
-1. After successful food detection
-2. Adjust the portion slider (0.5x to 2x)
-3. Verify calories and macros scale accordingly
+1. Upload food image with clear portion visible
+2. Check detection results
+
+**Expected Results:**
+- AI automatically estimates portion size based on visual cues
+- Macros calculated based on AI-estimated portion
+- No manual slider needed for adjustment
 
 ### Test 3: Food Log Persistence
 **Steps:**

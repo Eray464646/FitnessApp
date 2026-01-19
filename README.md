@@ -99,8 +99,8 @@ Interaktive mobile Web-App für KI-gestützte Bewegungserkennung mit **MediaPipe
   - Visueller Status-Indikator im Profil
   - "Food Scanner testen" Button mit Modus-Anzeige (direct/proxy)
   - Klare Fehlermeldungen
-- Portion-Slider für Anpassung der Mengen
-- Automatische Makro- und Kalorienschätzung
+- **Vollautomatische Portionsschätzung durch KI** (visuelle Erkennung ohne manuelle Eingabe)
+- Automatische Makro- und Kalorienschätzung basierend auf geschätzter Portion
 - Debug-Logging im Development-Modus
 
 #### **KI-Trainingsplanung**
